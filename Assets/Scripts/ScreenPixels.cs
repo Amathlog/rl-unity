@@ -8,15 +8,19 @@ public class ScreenPixels : MonoBehaviour {
 	[SerializeField] private int widthPixelsStep = 300;
 	[SerializeField] private int heightPixelsStep = 200;
 
+	void Start(){
+		Screen.SetResolution(64, 64, false);
+	}
+
 	void Update(){
 		// Check if read screen button is pushed (by default it's Fire1 = leftCtrl or left click)
 		bool pushed = CrossPlatformInputManager.GetButtonDown("Fire1");
 		if (pushed)
-			StartCoroutine (Start ());
+			StartCoroutine (StartReading ());
 	}
 
 	// Read immediatly
-	IEnumerator Start () {
+	IEnumerator StartReading () {
 		yield return ReadScreen();
 	}
 	
