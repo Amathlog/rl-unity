@@ -28,9 +28,10 @@ writer = imageio.get_writer('test.mp4', mode='I', fps=25)
 
 
 
-for i in range(10):
+for i in range(500):
 
-  a[1] = i
+  a[0] = 0.1
+  a[1] = 0.5
   data_out = a.tobytes()
 
   print(len(data_out))
@@ -48,7 +49,7 @@ for i in range(10):
   frame = np.frombuffer(data_in, np.uint8, -1, sd*4)
   print(len(frame))
   img = np.reshape(frame, [128, 128, 4])
-  img = img[:, :, :3]
+  img = img[::-1, :, :3]
   print("r: ", state)
 
   writer.append_data(img)

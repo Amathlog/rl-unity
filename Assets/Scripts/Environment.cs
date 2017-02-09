@@ -4,14 +4,31 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityStandardAssets.CrossPlatformInput;
+using UnityStandardAssets.Vehicles.Car;
 
-public class Environment : MonoBehaviour {
+public class Environment : MonoBehaviour
+{
 
     [SerializeField] private GameObject cam;
+    [SerializeField] private GameObject car;
+
+    private CarController carController;
+    private Color32[] screenPixels = null;
+    private bool reading = false;
 
     public byte[] GetFrame()
     {
-        return Color32ArrayToByteArray(ReadScreen());
+        if (screenPixels == null)
+            return null;
+        byte[] res = Color32ArrayToByteArray(screenPixels);
+        //print("Color32[0] = " + screenPixels[0]);
+        //print("byte[0:4] = " + res[0] + ", " + res[1] + ", " + res[2] + ", " + res[3]);
+        return res;
+    }
+
+    public void MakeAction(float[] actions)
+    {
+        carController.Move(actions[0], actions[1], actions[1], 0f);
     }
 
     private byte[] Color32ArrayToByteArray(Color32[] colors)
@@ -39,15 +56,53 @@ public class Environment : MonoBehaviour {
         return bytes;
     }
 
-    private void Update()
+
+    //private Color32[] ReadScreen()
+    //{
+    //    Texture2D tex = cam.GetComponent<CameraCapture>().RenderResult;
+    //    if (tex == null)
+    //        return null;
+    //    return tex.GetPixels32();
+    //}
+
+    void Start()
     {
-        //print(GetFrame()[0]);
+        carController = car.GetComponent<CarController>();
     }
-	
-	private Color32[] ReadScreen () {
-        Texture2D tex = cam.GetComponent<CameraCapture>().RenderResult;
-        if (tex == null)
-            return null;
-		return tex.GetPixels32();
-	}
+
+    void FixedUpdate()
+    {
+        if (!reading)
+        {
+            reading = true;
+            //GetFrame();
+            StartCoroutine(StartReading());
+        }
+        
+    }
+
+    // Read immediatly
+    IEnumerator StartReading()
+    {
+        yield return ReadScreen();
+    }
+
+    IEnumerator ReadScreen()
+    {
+        // We should only read the screen buffer after rendering is complete
+        yield return new WaitForEndOfFrame();
+
+        // Create a texture the size of the screen, RGB24 format
+        int width = Screen.width;
+        int height = Screen.height;
+        Texture2D tex = new Texture2D(width, height, TextureFormat.RGB24, false);
+
+        // Read screen contents into the texture
+        tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+        tex.Apply();
+
+        // Check if texture is correctly read in 20 pixels upper left
+        screenPixels = tex.GetPixels32();
+        reading = false;
+    }
 }
