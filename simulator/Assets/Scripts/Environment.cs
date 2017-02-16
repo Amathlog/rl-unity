@@ -28,6 +28,7 @@ public class Environment : MonoBehaviour
 
     public void MakeAction(float[] actions)
     {
+        print("make action " + actions[0] + " " + actions[1]);
         carController.Move(actions[0], actions[1], actions[1], 0f);
     }
 

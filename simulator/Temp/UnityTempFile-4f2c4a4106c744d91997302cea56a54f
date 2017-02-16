@@ -3,7 +3,6 @@
 -nowarn:0169
 -langversion:4
 -out:Temp/Assembly-CSharp.dll
--optimize
 -r:/opt/Unity/Editor/Data/PlaybackEngines/LinuxStandaloneSupport/Managed/UnityEngine.dll
 -r:Library/ScriptAssemblies/Assembly-CSharp-firstpass.dll
 -r:/opt/Unity/Editor/Data/UnityExtensions/Unity/GUISystem/Standalone/UnityEngine.UI.dll
@@ -66,6 +65,11 @@
 -define:ENABLE_VIDEO
 -define:ENABLE_WEBSOCKET_HOST
 -define:ENABLE_MONO
+-define:DEVELOPMENT_BUILD
+-define:ENABLE_PROFILER
+-define:DEBUG
+-define:TRACE
+-define:UNITY_ASSERTIONS
 -define:CROSS_PLATFORM_INPUT
 Assets/Scripts/CameraCapture.cs
 Assets/Scripts/Environment.cs
