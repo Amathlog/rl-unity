@@ -42,8 +42,12 @@ class UnityEnv(gym.Env):
     print('Port: {}'.format(port))
     assert port != 0
     import platform
-    pl = 'windows' if platform.platform() == 'Windows' else 'unix'
-    bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.x86_64')
+    print(platform.platform())
+    pl = 'windows' if 'Windows' in platform.platform() else 'unix'
+    if(pl == 'windows'):
+      bin = bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.exe')
+    else:
+      bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.x86_64')
     bin = os.path.abspath(bin)
     env = os.environ.copy()
     env.update(RL_UNITY_PORT=str(port),
