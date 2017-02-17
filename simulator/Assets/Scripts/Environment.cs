@@ -18,9 +18,7 @@ public class Environment : MonoBehaviour
 
     public byte[] GetFrame()
     {
-        if (screenPixels == null)
-            return null;
-        byte[] res = Color32ArrayToByteArray(screenPixels);
+        byte[] res = Color32ArrayToByteArray(ReadScreenImmediate());
         //print("Color32[0] = " + screenPixels[0]);
         //print("byte[0:4] = " + res[0] + ", " + res[1] + ", " + res[2] + ", " + res[3]);
         return res;
@@ -57,53 +55,15 @@ public class Environment : MonoBehaviour
         return bytes;
     }
 
-
-    //private Color32[] ReadScreen()
-    //{
-    //    Texture2D tex = cam.GetComponent<CameraCapture>().RenderResult;
-    //    if (tex == null)
-    //        return null;
-    //    return tex.GetPixels32();
-    //}
-
     void Start()
     {
         carController = car.GetComponent<CarController>();
     }
 
-    void FixedUpdate()
-    {
-        if (!reading)
-        {
-            reading = true;
-            //GetFrame();
-            StartCoroutine(StartReading());
-        }
-        
-    }
-
-    // Read immediatly
-    IEnumerator StartReading()
-    {
-        yield return ReadScreen();
-    }
-
-    IEnumerator ReadScreen()
-    {
-        // We should only read the screen buffer after rendering is complete
-        yield return new WaitForEndOfFrame();
-
-        // Create a texture the size of the screen, RGB24 format
-        int width = Screen.width;
-        int height = Screen.height;
-        Texture2D tex = new Texture2D(width, height, TextureFormat.RGB24, false);
-
-        // Read screen contents into the texture
-        tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-        tex.Apply();
-
-        // Check if texture is correctly read in 20 pixels upper left
-        screenPixels = tex.GetPixels32();
-        reading = false;
+    Color32[] ReadScreenImmediate() {
+        Texture2D tex = cam.GetComponent<CameraCapture>().RenderResult;
+        if (tex == null)
+            return null;
+        return tex.GetPixels32();
     }
 }

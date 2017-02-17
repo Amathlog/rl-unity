@@ -136,7 +136,7 @@ public class sockets : MonoBehaviour
     // Update is called once per frame
     void FixedUpdate()
     {
-        print("upd");
+        //print("upd");
         if(clientSocket != null){
 
             if (t == skipfirst){

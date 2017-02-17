@@ -2,18 +2,13 @@
 
 public class CameraCapture : MonoBehaviour
 {
-    [HideInInspector] public Texture2D RenderResult;
-    private RenderTexture renderTexture;
-
-    private void Start()
-    {
-        RenderResult = new Texture2D(Screen.width, Screen.height);
-        renderTexture = new RenderTexture(Screen.width, Screen.height, 0);
-        GetComponent<Camera>().targetTexture = renderTexture;
-    }
+    [HideInInspector] public Texture2D RenderResult = null;
 
     void OnPostRender()
     {
+        if(RenderResult == null)
+            RenderResult = new Texture2D(Screen.width, Screen.height);
+
         Camera owner = GetComponent<Camera>();
         RenderTexture target = owner.targetTexture;
 
