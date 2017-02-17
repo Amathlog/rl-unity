@@ -1,8 +1,10 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityStandardAssets.CrossPlatformInput;
 using UnityStandardAssets.Vehicles.Car;
 
@@ -11,6 +13,7 @@ public class Environment : MonoBehaviour
 
     [SerializeField] private GameObject cam;
     [SerializeField] private GameObject car;
+    [SerializeField] private GameObject markers;
 
     private CarController carController;
     private Color32[] screenPixels = null;
@@ -26,7 +29,6 @@ public class Environment : MonoBehaviour
 
     public void MakeAction(float[] actions)
     {
-        print("make action " + actions[0] + " " + actions[1]);
         carController.Move(actions[0], actions[1], actions[1], 0f);
     }
 
@@ -58,6 +60,7 @@ public class Environment : MonoBehaviour
     void Start()
     {
         carController = car.GetComponent<CarController>();
+        GenerateFileWithWaypoints();
     }
 
     Color32[] ReadScreenImmediate() {
@@ -65,5 +68,15 @@ public class Environment : MonoBehaviour
         if (tex == null)
             return null;
         return tex.GetPixels32();
+    }
+
+    void GenerateFileWithWaypoints() {
+        List<Vector3_base> data = new List<Vector3_base>();
+        foreach (Transform child in markers.transform) {
+            data.Add(new Vector3_base(child.position));
+        }
+        string json = JsonConvert.SerializeObject(data.ToArray());
+        string path = Application.dataPath + "/waypoints_" + SceneManager.GetActiveScene().name + ".txt";
+        System.IO.File.WriteAllText(path, json);
     }
 }
