@@ -41,10 +41,18 @@ class UnityEnv(gym.Env):
     port = get_free_port(host)
     print('Port: {}'.format(port))
     assert port != 0
-    bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', 'sim.x86_64')
+    import platform
+    print(platform.platform())
+    pl = 'windows' if 'Windows' in platform.platform() else 'unix'
+    if(pl == 'windows'):
+      bin = bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.exe')
+    else:
+      bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.x86_64')
     bin = os.path.abspath(bin)
     env = os.environ.copy()
-    env.update(RL_UNITY_PORT=str(port))  # insert env variables here
+    env.update(RL_UNITY_PORT=str(port),
+               RL_UNITY_WIDTH=str(self.w),
+               RL_UNITY_HEIGHT=str(self.h))  # insert env variables here
 
     print(bin)
     def errw():
@@ -150,6 +158,6 @@ if __name__ == '__main__':
   env.reset()
   for i in range(10000):
     print(i)
-    env.step([.1, .5])
+    env.step([1., 1.])
 
 

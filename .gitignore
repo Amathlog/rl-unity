@@ -4,7 +4,7 @@ simulator/[Ll]ibrary/
 simulator/[Tt]emp/
 simulator/[Oo]bj/
 simulator/[Bb]uild/
-simulator/bin
+simulator/bin/
 simulator/[Bb]uilds/
 simulator/Assets/AssetStoreTools*
 
@@ -36,3 +36,4 @@ sysinfo.txt
 # Builds
 *.apk
 *.unitypackage
+

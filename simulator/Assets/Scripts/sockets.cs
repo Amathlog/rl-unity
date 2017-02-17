@@ -16,8 +16,8 @@ public class sockets : MonoBehaviour
     Int32 port;
     Environment env;
 
-    // int width;
-    // int height;
+    int width;
+    int height;
     int t = 0;
     int skipfirst = 10;
 
@@ -29,8 +29,8 @@ public class sockets : MonoBehaviour
     {
         // Read environment variables
         port = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_PORT"));
-        // width = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_WIDTH"));
-        // height = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_HEIGHT"));
+        width = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_WIDTH"));
+        height = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_HEIGHT"));
 
         if(port==0)
             port = 8887;
@@ -40,10 +40,10 @@ public class sockets : MonoBehaviour
         //     height = 128;
 
         Debug.Log("Port:" + port);
-        // Debug.Log("Width:" + width);
-        // Debug.Log("Height:" + height);
+        Debug.Log("Width:" + width);
+        Debug.Log("Height:" + height);
 
-        // Screen.SetResolution (width, height, false);  // width, height, windowed
+        Screen.SetResolution (width, height, false);  // width, height, windowed
 
         env = GameObject.Find("Env").GetComponent<Environment>();
 
@@ -136,7 +136,7 @@ public class sockets : MonoBehaviour
     // Update is called once per frame
     void FixedUpdate()
     {
-        print("upd");
+        //print("upd");
         if(clientSocket != null){
 
             if (t == skipfirst){
