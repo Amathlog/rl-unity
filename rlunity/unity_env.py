@@ -147,7 +147,8 @@ class UnityEnv(gym.Env):
     # v is the vector associated to AC (C is the position of the car)
     v = pos - a
 
-    # The projected point on the vector AB is (AB.AC) *AB / |AB|²
+    # The projected point on the vector AB is (AB.AC) * AB / |AB|² + A.
+    # In this case with u = AB/|AB|, proj = (AC.u)*u + a
     #        *C
     #       /|
     #      / |
