@@ -27,6 +27,10 @@ public class Environment : MonoBehaviour
         return res;
     }
 
+    public Vector3 GetPosition() {
+        return car.transform.position;
+    }
+
     public void MakeAction(float[] actions)
     {
         carController.Move(actions[0], actions[1], actions[1], 0f);

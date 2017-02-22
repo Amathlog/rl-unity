@@ -22,7 +22,7 @@ public class sockets : MonoBehaviour
     int skipfirst = 10;
 
     int ad = 2;
-    int sd = 2;
+    int sd = 3;
 
 
     void Start()
@@ -84,7 +84,10 @@ public class sockets : MonoBehaviour
 
             float[] state = new float[sd];
 
-            state[0] = 0.4f;
+            Vector3 position = env.GetPosition();
+            state[0] = position.x;
+            state[1] = position.y;
+            state[2] = position.z;
 
             //if (frame.Length != 128 * 128 * 4)
             //{
@@ -92,11 +95,11 @@ public class sockets : MonoBehaviour
             //}
 
             //            byte[] data_out = new byte[frame.Length];
-            byte[] data_out = new byte[sd * 4 + frame.Length];
+            byte[] data_out = new byte[sd * sizeof(float) + frame.Length];
             //            byte[] data_out = new byte[sd*4];
-            Buffer.BlockCopy(state, 0, data_out, 0, sd * 4);
+            Buffer.BlockCopy(state, 0, data_out, 0, sd * sizeof(float));
             //            Buffer.BlockCopy(frame, 0, data_out, 0, data_out.Length);
-            Buffer.BlockCopy(frame, 0, data_out, sd * 4, frame.Length);
+            Buffer.BlockCopy(frame, 0, data_out, sd * sizeof(float), frame.Length);
 
             networkStream.Write(data_out, 0, data_out.Length);
             networkStream.Flush();
@@ -114,7 +117,7 @@ public class sockets : MonoBehaviour
 
             requestCount = requestCount + 1;
 
-            byte[] data_in = new byte[ad * 4];
+            byte[] data_in = new byte[ad * sizeof(float)];
 
             networkStream.Read(data_in, 0, data_in.Length);
 
