@@ -12,7 +12,7 @@ import io
 import os
 import gym
 from time import sleep
-
+import json
 import sys
 
 
@@ -27,7 +27,7 @@ class UnityEnv(gym.Env):
 
   def _configure(self, *args):
     self.ad = 2
-    self.sd = 2
+    self.sd = 3
     self.w = 128
     self.h = 128
     n = self.w * self.h * 4
@@ -44,8 +44,9 @@ class UnityEnv(gym.Env):
     import platform
     print(platform.platform())
     pl = 'windows' if 'Windows' in platform.platform() else 'unix'
+    self.sim_path = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl)
     if(pl == 'windows'):
-      bin = bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.exe')
+      bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.exe')
     else:
       bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.x86_64')
     bin = os.path.abspath(bin)
@@ -89,6 +90,7 @@ class UnityEnv(gym.Env):
       try:
         self.soc.connect((host, port))
         self.connected = True
+
         break
       except OSError:
         pass
@@ -96,6 +98,12 @@ class UnityEnv(gym.Env):
       sleep(.1)
 
     assert self.connected
+    with open(os.path.join(self.sim_path, 'sim_Data', 'waypoints_SimpleTerrain.txt')) as f:
+      wp = json.load(f)
+    print('fdjsklfdjklsdjfk', wp)
+    self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
+    print(self.wp)
+
 
     state, frame = self.recv()
 
@@ -118,6 +126,16 @@ class UnityEnv(gym.Env):
     self.last_state = state
 
     return state, frame
+
+  def _metrics(self, pos):
+    self.path = np.zeros([100, 3])
+    ia, ib = np.argsort(self.path - pos)[:2]
+    a, b = self.path[ia, :], self.path[ib, :]  # two closest points
+    dist = np.cross(np.abs(pos-a), np.abs(pos-b))/ np.abs(b-a)
+    n = b-a
+    proj = n/np.linalg.norm(n) * (pos-a) + a
+    print(dist, proj)
+
 
   def _step(self, action):
     a = np.array(action, dtype=np.float32)
