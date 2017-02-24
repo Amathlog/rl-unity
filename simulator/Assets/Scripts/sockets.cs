@@ -89,6 +89,8 @@ public class sockets : MonoBehaviour
             state[1] = position.y;
             state[2] = position.z;
 
+            print(state)
+
             //if (frame.Length != 128 * 128 * 4)
             //{
             //    Debug.Log("fdsfd");

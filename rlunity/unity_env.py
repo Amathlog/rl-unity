@@ -32,7 +32,7 @@ class UnityEnv(gym.Env):
     self.h = 128
     n = self.w * self.h * 4
     self.BUFFER_SIZE = self.sd * 4 + n
-    pass
+
 
   def _reset(self):
     self._close()  # reset
@@ -97,9 +97,13 @@ class UnityEnv(gym.Env):
       sleep(.1)
 
     assert self.connected
-    
-    with open(os.path.join(self.sim_path, 'sim_Data', 'waypoints_SimpleTerrain.txt')) as f:
-        wp = json.load(f)
+
+    for _ in range(100):
+      try:
+        with open(os.path.join(self.sim_path, 'sim_Data', 'waypoints_SimpleTerrain.txt')) as f:
+          wp = json.load(f)
+      except FileNotFoundError:
+        sleep(.05)
 
     self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
     print(self.wp)
@@ -118,11 +122,12 @@ class UnityEnv(gym.Env):
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
     state = np.reshape(state, [3])
+    print(state)
     self._metrics(state)
     frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
     # print(len(frame))
     frame = np.reshape(frame, [128, 128, 4])
-    frame = frame[:-1, :, :3]  # TODO: why -1 in first dim?
+    frame = frame[:, :, :3]
 
     self.last_frame = frame
     self.last_state = state
@@ -132,10 +137,14 @@ class UnityEnv(gym.Env):
   def _metrics(self, pos):
     # Distance to all points
     # Perhaps need to be accelerated
-    diff = self.wp - pos
-    allDist = [(np.linalg.norm(diff[x]), x) for x in range(len(diff))]
-    allDist.sort(key=lambda tuples: tuples[0])
-    ia, ib = allDist[0][1], allDist[1][1]
+
+    # diff = self.wp - pos
+    # allDist = [(np.linalg.norm(diff[x]), x) for x in range(len(diff))]
+    #
+    # allDist.sort(key=lambda tuples: tuples[0])
+    # ia, ib = allDist[0][1], allDist[1][1]
+
+    ia, ib = np.argsort(np.linalg.norm(self.wp-pos, axis=1))[:2]
 
     # print("pos : " + str(pos))
     # print("ia and ib : " + str(ia) + " " + str(ib))
@@ -157,7 +166,7 @@ class UnityEnv(gym.Env):
     #  A*----*----*B
     #       proj
     #
-    proj = np.dot(u,v) * u + a
+    proj = np.dot(u, v) * u + a
     # Square distance, Pythagorean theorem in the triangle A-C-proj
     sqrDist = np.linalg.norm(v)**2 - np.linalg.norm(proj - a)**2
     # dist = np.cross(np.abs(pos-a), np.abs(pos-b))/ np.abs(b-a)
@@ -168,7 +177,6 @@ class UnityEnv(gym.Env):
 
   def _step(self, action):
     a = np.array(action, dtype=np.float32)
-    print(a.shape)
     assert a.shape == (self.ad, )
     data_out = a.tobytes()
     self.soc.sendall(data_out)
