@@ -8,22 +8,38 @@ using UnityEngine.SceneManagement;
 using UnityStandardAssets.CrossPlatformInput;
 using UnityStandardAssets.Vehicles.Car;
 
-public class Environment : MonoBehaviour
-{
+public class Environment : MonoBehaviour {
 
     [SerializeField] private GameObject cam;
     [SerializeField] private GameObject car;
     [SerializeField] private GameObject markers;
 
+    private List<Vector3> markersPos;
+    private Vector3 lastProj;
+    private Vector3 currProj;
+    private float distanceFromRoad = 0.0f;
+    private Vector3 speedAlongRoad;
     private CarController carController;
-    private Color32[] screenPixels = null;
-    private bool reading = false;
+
+    internal class PairDistanceVector {
+        public Vector3 v;
+        public float dist;
+
+        public PairDistanceVector(Vector3 v, float dist) {
+            this.v = v;
+            this.dist = dist;
+        }
+    }
+
+    internal class ComparePairDistanceVector : IComparer<PairDistanceVector> {
+        public int Compare(PairDistanceVector x, PairDistanceVector y) {
+            return (int)(x.dist - y.dist);
+        }
+    }
 
     public byte[] GetFrame()
     {
         byte[] res = Color32ArrayToByteArray(ReadScreenImmediate());
-        //print("Color32[0] = " + screenPixels[0]);
-        //print("byte[0:4] = " + res[0] + ", " + res[1] + ", " + res[2] + ", " + res[3]);
         return res;
     }
 
@@ -64,7 +80,45 @@ public class Environment : MonoBehaviour
     void Start()
     {
         carController = car.GetComponent<CarController>();
-        GenerateFileWithWaypoints();
+        markersPos = new List<Vector3>();
+        lastProj = GetPosition();
+        currProj = lastProj;
+        speedAlongRoad = Vector3.zero;
+        foreach (Transform child in markers.transform) {
+            markersPos.Add(child.position);
+        }
+
+    }
+
+    void ComputeDistance() {
+        List<PairDistanceVector> distances = new List<PairDistanceVector>();
+        foreach(Vector3 pos in markersPos) {
+            distances.Add(new PairDistanceVector(pos, Vector3.Distance(pos, GetPosition())));
+        }
+        distances.Sort(new ComparePairDistanceVector());
+        Vector3 a = distances[0].v;
+        Vector3 b = distances[1].v;
+        // u is the unit vector associated to AB
+        Vector3 u = (b - a).normalized;
+        //v is the vector associated to AC (C is the position of the car)
+        Vector3 v = GetPosition() - a;
+
+        // The projected point on the vector AB is (AB.AC) * AB / |AB|² + A.
+        // In this case with u = AB/|AB|, proj = (AC.u)*u + a
+        //        *C
+        //       /|
+        //      / |
+        //     /  |
+        //    /   |
+        //  A*----*----*B
+        //      proj
+
+        lastProj = currProj;
+        currProj = Vector3.Dot(u, v) * u + a;
+        speedAlongRoad = currProj - lastProj;
+        // Square distance, Pythagorean theorem in the triangle A-C-proj
+        distanceFromRoad = v.sqrMagnitude - (currProj - a).sqrMagnitude;
+
     }
 
     Color32[] ReadScreenImmediate() {
@@ -74,13 +128,19 @@ public class Environment : MonoBehaviour
         return tex.GetPixels32();
     }
 
-    void GenerateFileWithWaypoints() {
-        List<Vector3_base> data = new List<Vector3_base>();
-        foreach (Transform child in markers.transform) {
-            data.Add(new Vector3_base(child.position));
-        }
-        string json = JsonConvert.SerializeObject(data.ToArray());
-        string path = Application.dataPath + "/waypoints_" + SceneManager.GetActiveScene().name + ".txt";
-        System.IO.File.WriteAllText(path, json);
+    //void GenerateFileWithWaypoints() { 
+    //    string json = JsonConvert.SerializeObject(markersPos.ToArray());
+    //    string path = Application.dataPath + "/waypoints_" + SceneManager.GetActiveScene().name + ".txt";
+    //    System.IO.File.WriteAllText(path, json);
+    //}
+
+    public float[] GetState() {
+        ComputeDistance();
+        float[] res = new float[4];
+        res[0] = distanceFromRoad;
+        res[1] = speedAlongRoad.x;
+        res[2] = speedAlongRoad.y;
+        res[3] = speedAlongRoad.z;
+        return res;
     }
 }

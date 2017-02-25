@@ -27,7 +27,7 @@ class UnityEnv(gym.Env):
 
   def _configure(self, *args):
     self.ad = 2
-    self.sd = 3
+    self.sd = 4
     self.w = 128
     self.h = 128
     n = self.w * self.h * 4
@@ -98,17 +98,6 @@ class UnityEnv(gym.Env):
 
     assert self.connected
 
-    for _ in range(100):
-      try:
-        with open(os.path.join(self.sim_path, 'sim_Data', 'waypoints_SimpleTerrain.txt')) as f:
-          wp = json.load(f)
-      except FileNotFoundError:
-        sleep(.05)
-
-    self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
-    print(self.wp)
-
-
     state, frame = self.recv()
 
     return frame
@@ -121,9 +110,7 @@ class UnityEnv(gym.Env):
       data_in += chunk
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
-    state = np.reshape(state, [3])
-    print(state)
-    self._metrics(state)
+    print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1:]))
     frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
     # print(len(frame))
     frame = np.reshape(frame, [128, 128, 4])
@@ -133,46 +120,6 @@ class UnityEnv(gym.Env):
     self.last_state = state
 
     return state, frame
-
-  def _metrics(self, pos):
-    # Distance to all points
-    # Perhaps need to be accelerated
-
-    # diff = self.wp - pos
-    # allDist = [(np.linalg.norm(diff[x]), x) for x in range(len(diff))]
-    #
-    # allDist.sort(key=lambda tuples: tuples[0])
-    # ia, ib = allDist[0][1], allDist[1][1]
-
-    ia, ib = np.argsort(np.linalg.norm(self.wp-pos, axis=1))[:2]
-
-    # print("pos : " + str(pos))
-    # print("ia and ib : " + str(ia) + " " + str(ib))
-    a, b = self.wp[ia, :], self.wp[ib, :]  # two closest points
-    # print("a and b: " + str(a) + " " + str(b))
-    u = b - a
-    # u is the unit vector associated to AB
-    u = u / np.linalg.norm(u)
-    # v is the vector associated to AC (C is the position of the car)
-    v = pos - a
-
-    # The projected point on the vector AB is (AB.AC) * AB / |AB|² + A.
-    # In this case with u = AB/|AB|, proj = (AC.u)*u + a
-    #        *C
-    #       /|
-    #      / |
-    #     /  |
-    #    /   |
-    #  A*----*----*B
-    #       proj
-    #
-    proj = np.dot(u, v) * u + a
-    # Square distance, Pythagorean theorem in the triangle A-C-proj
-    sqrDist = np.linalg.norm(v)**2 - np.linalg.norm(proj - a)**2
-    # dist = np.cross(np.abs(pos-a), np.abs(pos-b))/ np.abs(b-a)
-    # n = b-a
-    # proj = n/np.linalg.norm(n) * (pos-a) + a
-    print(sqrDist, proj)
 
 
   def _step(self, action):
