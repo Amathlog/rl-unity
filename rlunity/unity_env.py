@@ -27,7 +27,7 @@ class UnityEnv(gym.Env):
 
   def _configure(self, *args):
     self.ad = 2
-    self.sd = 4
+    self.sd = 2
     self.w = 128
     self.h = 128
     n = self.w * self.h * 4
@@ -110,7 +110,7 @@ class UnityEnv(gym.Env):
       data_in += chunk
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
-    print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1:]))
+    print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
     frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
     # print(len(frame))
     frame = np.reshape(frame, [128, 128, 4])

@@ -22,7 +22,7 @@ public class sockets : MonoBehaviour
     int skipfirst = 10;
 
     int ad = 2;
-    int sd = 4;
+    int sd = 2;
 
 
     void Start()
