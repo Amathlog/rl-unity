@@ -15,6 +15,8 @@ from time import sleep
 import json
 import sys
 
+from gym import spaces
+
 
 class UnityEnv(gym.Env):
 
@@ -25,20 +27,16 @@ class UnityEnv(gym.Env):
     self.soc = None
     self._configure()
 
-  def _configure(self, *args):
+  def _configure(self, w=128, h=128, batchmode=True, *args):
     self.ad = 2
     self.sd = 2
-    self.w = 128
-    self.h = 128
-    if(self.batchmode):
-      n = 0
-    else:
-      n = self.w * self.h * 4
     self.w = w
     self.h = h
-    n = self.w * self.h * 4
+    self.batchmode = batchmode
+    n = 0 if batchmode else self.w * self.h * 4
     self.BUFFER_SIZE = self.sd * 4 + n
-
+    self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
+    self.observation_space = spaces.Box(np.zeros([self.w, self.h, 3]), np.ones([self.w, self.h, 3]))
 
   def _reset(self):
     self._close()  # reset
@@ -85,12 +83,11 @@ class UnityEnv(gym.Env):
 
     # TODO: ensure that the sim doesn't read or write any cache or config files
     self.proc = subprocess.Popen([bin,
-                                  '-force-opengl',
                                   '-logfile',
-                                  # '-batchmode',
-                                  # '-nographics',
+                                  *(['-batchmode', '-nographics'] if self.batchmode else ['-force-opengl']),
                                   '-screen-width {}'.format(self.w),
-                                  '-screen-height {}'.format(self.h)],
+                                  '-screen-height {}'.format(self.h)
+                                  ],
                                  env=env,
                                  stderr=subprocess.PIPE,
                                  stdout=subprocess.PIPE,
@@ -120,25 +117,27 @@ class UnityEnv(gym.Env):
 
   def recv(self):
     data_in = b""
-    while len(data_in) < self.BUFFER_SIZE:
-      # print('receiving stuff')
-      chunk = self.soc.recv(min(1024, self.BUFFER_SIZE - len(data_in)))
+    # while len(data_in) < self.BUFFER_SIZE:
+    #   # print('receiving stuff')
+    #   chunk = self.soc.recv(min(1024, self.BUFFER_SIZE - len(data_in)))
+    #   data_in += chunk
+
+    while True:
+      chunk = self.soc.recv(1024)
+      if not chunk:
+        break
       data_in += chunk
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
-    # print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
-    frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
-    # print(len(frame))
-    frame = np.reshape(frame, [self.w, self.h, 4])
-    frame = frame[:, :, :3]
+
     print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
-    if(not self.batchmode):
+    if self.batchmode:
+      frame = None
+    else:
       frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
       # print(len(frame))
-      frame = np.reshape(frame, [128, 128, 4])
+      frame = np.reshape(frame, [self.w, self.h, 4])
       frame = frame[:, :, :3]
-    else:
-      frame = None
 
     self.last_frame = frame
     self.last_state = state
@@ -180,14 +179,14 @@ def get_free_port(host):
 
 if __name__ == '__main__':
 
-  import argparse
+  # import argparse
+  #
+  # parser = argparse.ArgumentParser(description='Unity Gym Environment')
+  # parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
+  # args = parser.parse_args()
+  # print(args.batchmode)
 
-  parser = argparse.ArgumentParser(description='Unity Gym Environment')
-  parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
-  args = parser.parse_args()
-  print(args.batchmode)
-
-  env = UnityEnv(args.batchmode)
+  env = UnityEnv()
   env.reset()
   for i in range(10000):
     print(i)
