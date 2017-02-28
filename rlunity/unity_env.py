@@ -4,7 +4,6 @@
 #
 # util.make_tensor_proto
 import threading
-from collections import namedtuple
 
 import numpy as np
 import socket
@@ -15,7 +14,6 @@ import gym
 from time import sleep
 import json
 import sys
-from gym import spaces
 
 
 class UnityEnv(gym.Env):
@@ -27,17 +25,20 @@ class UnityEnv(gym.Env):
     self.soc = None
     self._configure()
 
-  def _configure(self, *args, w=128, h=128):
+  def _configure(self, *args):
     self.ad = 2
     self.sd = 2
+    self.w = 128
+    self.h = 128
+    if(self.batchmode):
+      n = 0
+    else:
+      n = self.w * self.h * 4
     self.w = w
     self.h = h
     n = self.w * self.h * 4
     self.BUFFER_SIZE = self.sd * 4 + n
-    # spec = namedtuple('Spec', ['timestep_limit'])
-    # self.spec = spec(timestep_limit=10000)
-    self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
-    self.observation_space = spaces.Box(np.zeros([self.w, self.h, 3]), np.ones([self.w, self.h, 3]))
+
 
   def _reset(self):
     self._close()  # reset
@@ -111,7 +112,6 @@ class UnityEnv(gym.Env):
 
       sleep(.1)
 
-    sleep(.3)
     assert self.connected
 
     state, frame = self.recv()
@@ -131,6 +131,14 @@ class UnityEnv(gym.Env):
     # print(len(frame))
     frame = np.reshape(frame, [self.w, self.h, 4])
     frame = frame[:, :, :3]
+    print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
+    if(not self.batchmode):
+      frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
+      # print(len(frame))
+      frame = np.reshape(frame, [128, 128, 4])
+      frame = frame[:, :, :3]
+    else:
+      frame = None
 
     self.last_frame = frame
     self.last_state = state
@@ -172,7 +180,14 @@ def get_free_port(host):
 
 if __name__ == '__main__':
 
-  env = UnityEnv()
+  import argparse
+
+  parser = argparse.ArgumentParser(description='Unity Gym Environment')
+  parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
+  args = parser.parse_args()
+  print(args.batchmode)
+
+  env = UnityEnv(args.batchmode)
   env.reset()
   for i in range(10000):
     print(i)
