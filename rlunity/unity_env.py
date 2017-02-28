@@ -15,22 +15,26 @@ from time import sleep
 import json
 import sys
 
-
 class UnityEnv(gym.Env):
 
   metadata = {'render.modes': ['human', 'rgb_array']}
 
-  def __init__(self):
+  def __init__(self, batchmode):
     self.proc = None
     self.soc = None
+    self.batchmode = batchmode
     self._configure()
+    
 
   def _configure(self, *args):
     self.ad = 2
     self.sd = 2
     self.w = 128
     self.h = 128
-    n = self.w * self.h * 4
+    if(self.batchmode):
+      n = 0
+    else:
+      n = self.w * self.h * 4
     self.BUFFER_SIZE = self.sd * 4 + n
 
 
@@ -72,13 +76,25 @@ class UnityEnv(gym.Env):
       print(self.proc.returncode)
 
     # https://docs.unity3d.com/Manual/CommandLineArguments.html
-    self.proc = subprocess.Popen([bin, '-logfile',
-                                  '-screen-width {}'.format(self.w),
-                                  '-screen-height {}'.format(self.h)],
-                                 env=env,
-                                 stderr=subprocess.PIPE,
-                                 stdout=subprocess.PIPE,
-                                 universal_newlines=True)
+    if(not self.batchmode):
+      self.proc = subprocess.Popen([bin, '-logfile',
+                                    '-screen-width {}'.format(self.w),
+                                    '-screen-height {}'.format(self.h)],
+                                   env=env,
+                                   stderr=subprocess.PIPE,
+                                   stdout=subprocess.PIPE,
+                                   universal_newlines=True)
+    else:
+      self.proc = subprocess.Popen([bin, '-logfile',
+                                    '-screen-width {}'.format(self.w),
+                                    '-screen-height {}'.format(self.h),
+                                    '-batchmode',
+                                    '-nographics'],
+                                   env=env,
+                                   stderr=subprocess.PIPE,
+                                   stdout=subprocess.PIPE,
+                                   universal_newlines=True,
+                                   )
 
     threading.Thread(target=poll, daemon=True).start()
     threading.Thread(target=errw, daemon=True).start()
@@ -111,10 +127,13 @@ class UnityEnv(gym.Env):
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
     print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
-    frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
-    # print(len(frame))
-    frame = np.reshape(frame, [128, 128, 4])
-    frame = frame[:, :, :3]
+    if(not self.batchmode):
+      frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
+      # print(len(frame))
+      frame = np.reshape(frame, [128, 128, 4])
+      frame = frame[:, :, :3]
+    else:
+      frame = None
 
     self.last_frame = frame
     self.last_state = state
@@ -156,7 +175,14 @@ def get_free_port(host):
 
 if __name__ == '__main__':
 
-  env = UnityEnv()
+  import argparse
+
+  parser = argparse.ArgumentParser(description='Unity Gym Environment')
+  parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
+  args = parser.parse_args()
+  print(args.batchmode)
+
+  env = UnityEnv(args.batchmode)
   env.reset()
   for i in range(10000):
     print(i)
