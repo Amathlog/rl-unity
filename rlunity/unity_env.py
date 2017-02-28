@@ -4,6 +4,7 @@
 #
 # util.make_tensor_proto
 import threading
+from collections import namedtuple
 
 import numpy as np
 import socket
@@ -14,6 +15,7 @@ import gym
 from time import sleep
 import json
 import sys
+from gym import spaces
 
 
 class UnityEnv(gym.Env):
@@ -25,14 +27,17 @@ class UnityEnv(gym.Env):
     self.soc = None
     self._configure()
 
-  def _configure(self, *args):
+  def _configure(self, *args, w=128, h=128):
     self.ad = 2
     self.sd = 2
-    self.w = 128
-    self.h = 128
+    self.w = w
+    self.h = h
     n = self.w * self.h * 4
     self.BUFFER_SIZE = self.sd * 4 + n
-
+    # spec = namedtuple('Spec', ['timestep_limit'])
+    # self.spec = spec(timestep_limit=10000)
+    self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
+    self.observation_space = spaces.Box(np.zeros([self.w, self.h, 3]), np.ones([self.w, self.h, 3]))
 
   def _reset(self):
     self._close()  # reset
@@ -51,9 +56,13 @@ class UnityEnv(gym.Env):
       bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.x86_64')
     bin = os.path.abspath(bin)
     env = os.environ.copy()
-    env.update(RL_UNITY_PORT=str(port),
-               RL_UNITY_WIDTH=str(self.w),
-               RL_UNITY_HEIGHT=str(self.h))  # insert env variables here
+
+    env.update(
+      RL_UNITY_PORT=str(port),
+      RL_UNITY_WIDTH=str(self.w),
+      RL_UNITY_HEIGHT=str(self.h),
+      # MESA_GL_VERSION_OVERRIDE=str(3.3),
+      )  # insert env variables here
 
     print(bin)
     def errw():
@@ -72,7 +81,13 @@ class UnityEnv(gym.Env):
       print(self.proc.returncode)
 
     # https://docs.unity3d.com/Manual/CommandLineArguments.html
-    self.proc = subprocess.Popen([bin, '-logfile',
+
+    # TODO: ensure that the sim doesn't read or write any cache or config files
+    self.proc = subprocess.Popen([bin,
+                                  '-force-opengl',
+                                  '-logfile',
+                                  # '-batchmode',
+                                  # '-nographics',
                                   '-screen-width {}'.format(self.w),
                                   '-screen-height {}'.format(self.h)],
                                  env=env,
@@ -96,6 +111,7 @@ class UnityEnv(gym.Env):
 
       sleep(.1)
 
+    sleep(.3)
     assert self.connected
 
     state, frame = self.recv()
@@ -110,10 +126,10 @@ class UnityEnv(gym.Env):
       data_in += chunk
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
-    print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
+    # print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
     frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
     # print(len(frame))
-    frame = np.reshape(frame, [128, 128, 4])
+    frame = np.reshape(frame, [self.w, self.h, 4])
     frame = frame[:, :, :3]
 
     self.last_frame = frame
@@ -128,8 +144,8 @@ class UnityEnv(gym.Env):
     data_out = a.tobytes()
     self.soc.sendall(data_out)
     state, frame = self.recv()
-
-    return frame, 0, False, {}
+    reward = state[0] + state[1]
+    return frame, reward, False, {}
 
   def _close(self):
     if self.proc:
@@ -137,7 +153,7 @@ class UnityEnv(gym.Env):
     if self.soc:
       self.soc.close()
 
-  def render(self, mode='human', **kwargs):
+  def render(self, mode='human', *args, **kwargs):
     if mode == 'rgb_array':
       return self.last_frame  # return RGB frame suitable for video
     elif mode is 'human':
