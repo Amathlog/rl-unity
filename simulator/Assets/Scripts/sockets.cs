@@ -24,6 +24,8 @@ public class sockets : MonoBehaviour
     int ad = 2;
     int sd = 2;
 
+    bool graphicsMode = true;
+
 
     void Start()
     {
@@ -32,7 +34,14 @@ public class sockets : MonoBehaviour
         width = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_WIDTH"));
         height = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_HEIGHT"));
 
-        if(port==0)
+        // Check if it's graphics mode
+        string commandLineOptions = System.Environment.CommandLine;
+
+        if (commandLineOptions.Contains("-nographics")) {
+            graphicsMode = false;
+        }
+
+        if (port==0)
             port = 8887;
         // if(width==0)
         //     width = 128;
@@ -44,6 +53,8 @@ public class sockets : MonoBehaviour
         Debug.Log("Height:" + height);
 
         Screen.SetResolution (width, height, false);  // width, height, windowed
+        AudioListener.pause = true;
+        AudioListener.volume = 0;
 
         env = GameObject.Find("Env").GetComponent<Environment>();
 
@@ -74,7 +85,10 @@ public class sockets : MonoBehaviour
 
             NetworkStream networkStream = clientSocket.GetStream();
 
-            byte[] frame = env.GetFrame();
+            // Get the frame, if in graphics mode
+            byte[] frame = new byte[0];
+            if (graphicsMode)
+                frame = env.GetFrame();
 
             // Send distance to the road and vector3 speedAlongTheRoad
             float[] state = env.GetState();
@@ -82,7 +96,9 @@ public class sockets : MonoBehaviour
 
             print(state);
 
+            // Copy the data to send.
             byte[] data_out = new byte[sd * sizeof(float) + frame.Length];
+
             Buffer.BlockCopy(state, 0, data_out, 0, sd * sizeof(float));
             Buffer.BlockCopy(frame, 0, data_out, sd * sizeof(float), frame.Length);
 
