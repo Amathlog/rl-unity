@@ -75,6 +75,9 @@ public class sockets : MonoBehaviour
             NetworkStream networkStream = clientSocket.GetStream();
 
             byte[] frame = env.GetFrame();
+            if(frame==null){
+                frame = new byte[0];
+            }
 
             // Send distance to the road and vector3 speedAlongTheRoad
             float[] state = env.GetState();

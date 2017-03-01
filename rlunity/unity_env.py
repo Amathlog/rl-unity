@@ -68,20 +68,16 @@ class UnityEnv(gym.Env):
       )  # insert env variables here
 
     print(bin)
-    def errw():
-      for c in iter(lambda: self.proc.stderr.read(1), ''):
-        sys.stderr.write(c)
-        sys.stderr.flush()
 
     def stdw():
       for c in iter(lambda: self.proc.stdout.read(1), ''):
         sys.stdout.write(c)
         sys.stdout.flush()
-      # self.close(status=0)  # finished successfully
 
     def poll():
       self.proc.wait()
-      print(self.proc.returncode)
+      print(self.proc.stdout.read())
+      print(f'Unity returned with {self.proc.returncode}')
 
     # https://docs.unity3d.com/Manual/CommandLineArguments.html
 
@@ -93,12 +89,11 @@ class UnityEnv(gym.Env):
                                   '-screen-height {}'.format(self.h),
                                   ],
                                  env=env,
-                                 stderr=subprocess.PIPE,
                                  stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT,
                                  universal_newlines=True)
 
     threading.Thread(target=poll, daemon=True).start()
-    threading.Thread(target=errw, daemon=True).start()
     threading.Thread(target=stdw, daemon=True).start()
 
     self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -112,8 +107,9 @@ class UnityEnv(gym.Env):
         pass
 
       sleep(.1)
-    sleep(.5)
-    assert self.connected
+
+    if not self.connected:
+      raise Exception()
 
     state, frame = self.recv()
 
@@ -189,9 +185,11 @@ if __name__ == '__main__':
   parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
   args = parser.parse_args()
   print(args.batchmode)
+  bm = True
+  bm = args.batchmode
 
   env = UnityEnv()
-  env.configure(batchmode=args.batchmode)
+  env.configure(batchmode=bm)
   env.reset()
   for i in range(10000):
     print(i)
