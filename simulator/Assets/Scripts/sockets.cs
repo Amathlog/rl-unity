@@ -85,10 +85,10 @@ public class sockets : MonoBehaviour
 
             NetworkStream networkStream = clientSocket.GetStream();
 
-            // Get the frame, if in graphics mode
-            byte[] frame = new byte[0];
-            if (graphicsMode)
-                frame = env.GetFrame();
+            byte[] frame = env.GetFrame();
+            if(frame==null){
+                frame = new byte[0];
+            }
 
             // Send distance to the road and vector3 speedAlongTheRoad
             float[] state = env.GetState();

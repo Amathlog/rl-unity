@@ -15,28 +15,32 @@ from time import sleep
 import json
 import sys
 
+from gym import spaces
+
+
 class UnityEnv(gym.Env):
 
   metadata = {'render.modes': ['human', 'rgb_array']}
 
-  def __init__(self, batchmode):
+  def __init__(self):
     self.proc = None
     self.soc = None
-    self.batchmode = batchmode
     self._configure()
-    
 
-  def _configure(self, *args):
+  def _configure(self, w=128, h=128, batchmode=True, *args, **kwargs):
     self.ad = 2
     self.sd = 2
-    self.w = 128
-    self.h = 128
-    if(self.batchmode):
-      n = 0
-    else:
-      n = self.w * self.h * 4
+    self.w = w
+    self.h = h
+    self.batchmode = batchmode
+    n = 0 if batchmode else self.w * self.h * 4
     self.BUFFER_SIZE = self.sd * 4 + n
-
+    self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
+    if batchmode:
+      sbm = 2
+      self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
+    else:
+      self.observation_space = spaces.Box(np.zeros([self.w, self.h, 3]), np.ones([self.w, self.h, 3]))
 
   def _reset(self):
     self._close()  # reset
@@ -55,49 +59,41 @@ class UnityEnv(gym.Env):
       bin = os.path.join(os.path.dirname(__file__), '..', 'simulator', 'bin', pl, 'sim.x86_64')
     bin = os.path.abspath(bin)
     env = os.environ.copy()
-    env.update(RL_UNITY_PORT=str(port),
-               RL_UNITY_WIDTH=str(self.w),
-               RL_UNITY_HEIGHT=str(self.h))  # insert env variables here
+
+    env.update(
+      RL_UNITY_PORT=str(port),
+      RL_UNITY_WIDTH=str(self.w),
+      RL_UNITY_HEIGHT=str(self.h),
+      # MESA_GL_VERSION_OVERRIDE=str(3.3),
+      )  # insert env variables here
 
     print(bin)
-    def errw():
-      for c in iter(lambda: self.proc.stderr.read(1), ''):
-        sys.stderr.write(c)
-        sys.stderr.flush()
 
     def stdw():
       for c in iter(lambda: self.proc.stdout.read(1), ''):
         sys.stdout.write(c)
         sys.stdout.flush()
-      # self.close(status=0)  # finished successfully
 
     def poll():
       self.proc.wait()
-      print(self.proc.returncode)
+      print(self.proc.stdout.read())
+      print(f'Unity returned with {self.proc.returncode}')
 
     # https://docs.unity3d.com/Manual/CommandLineArguments.html
-    if(not self.batchmode):
-      self.proc = subprocess.Popen([bin, '-logfile',
-                                    '-screen-width {}'.format(self.w),
-                                    '-screen-height {}'.format(self.h)],
-                                   env=env,
-                                   stderr=subprocess.PIPE,
-                                   stdout=subprocess.PIPE,
-                                   universal_newlines=True)
-    else:
-      self.proc = subprocess.Popen([bin, '-logfile',
-                                    '-screen-width {}'.format(self.w),
-                                    '-screen-height {}'.format(self.h),
-                                    '-batchmode',
-                                    '-nographics'],
-                                   env=env,
-                                   stderr=subprocess.PIPE,
-                                   stdout=subprocess.PIPE,
-                                   universal_newlines=True,
-                                   )
+
+    # TODO: ensure that the sim doesn't read or write any cache or config files
+    self.proc = subprocess.Popen([bin,
+                                  '-logfile',
+                                  *(['-batchmode', '-nographics'] if self.batchmode else ['-force-opengl']),
+                                  '-screen-width {}'.format(self.w),
+                                  '-screen-height {}'.format(self.h),
+                                  ],
+                                 env=env,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT,
+                                 universal_newlines=True)
 
     threading.Thread(target=poll, daemon=True).start()
-    threading.Thread(target=errw, daemon=True).start()
     threading.Thread(target=stdw, daemon=True).start()
 
     self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -112,7 +108,8 @@ class UnityEnv(gym.Env):
 
       sleep(.1)
 
-    assert self.connected
+    if not self.connected:
+      raise Exception()
 
     state, frame = self.recv()
 
@@ -125,15 +122,22 @@ class UnityEnv(gym.Env):
       chunk = self.soc.recv(min(1024, self.BUFFER_SIZE - len(data_in)))
       data_in += chunk
 
+    # while True:
+    #   chunk = self.soc.recv(1024)
+    #   if not chunk:
+    #     break
+    #   data_in += chunk
+
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
+
     print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
-    if(not self.batchmode):
+    if self.batchmode:
+      frame = None
+    else:
       frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
       # print(len(frame))
-      frame = np.reshape(frame, [128, 128, 4])
+      frame = np.reshape(frame, [self.w, self.h, 4])
       frame = frame[:, :, :3]
-    else:
-      frame = None
 
     self.last_frame = frame
     self.last_state = state
@@ -147,8 +151,8 @@ class UnityEnv(gym.Env):
     data_out = a.tobytes()
     self.soc.sendall(data_out)
     state, frame = self.recv()
-
-    return frame, 0, False, {}
+    reward = state[0] + state[1]
+    return frame, reward, False, {}
 
   def _close(self):
     if self.proc:
@@ -156,7 +160,7 @@ class UnityEnv(gym.Env):
     if self.soc:
       self.soc.close()
 
-  def render(self, mode='human', **kwargs):
+  def render(self, mode='human', *args, **kwargs):
     if mode == 'rgb_array':
       return self.last_frame  # return RGB frame suitable for video
     elif mode is 'human':
@@ -181,8 +185,11 @@ if __name__ == '__main__':
   parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
   args = parser.parse_args()
   print(args.batchmode)
+  bm = True
+  bm = args.batchmode
 
-  env = UnityEnv(args.batchmode)
+  env = UnityEnv()
+  env.configure(batchmode=bm)
   env.reset()
   for i in range(10000):
     print(i)

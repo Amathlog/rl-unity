@@ -14,5 +14,5 @@ setup(name='rl-unity',
       extras_require={
 
       },
-      scripts=[''],
+      scripts=[],
       packages=find_packages())
