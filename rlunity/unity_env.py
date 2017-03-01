@@ -27,7 +27,7 @@ class UnityEnv(gym.Env):
     self.soc = None
     self._configure()
 
-  def _configure(self, w=128, h=128, batchmode=True, *args):
+  def _configure(self, w=128, h=128, batchmode=True, *args, **kwargs):
     self.ad = 2
     self.sd = 2
     self.w = w
@@ -36,7 +36,11 @@ class UnityEnv(gym.Env):
     n = 0 if batchmode else self.w * self.h * 4
     self.BUFFER_SIZE = self.sd * 4 + n
     self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
-    self.observation_space = spaces.Box(np.zeros([self.w, self.h, 3]), np.ones([self.w, self.h, 3]))
+    if batchmode:
+      sbm = 2
+      self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
+    else:
+      self.observation_space = spaces.Box(np.zeros([self.w, self.h, 3]), np.ones([self.w, self.h, 3]))
 
   def _reset(self):
     self._close()  # reset
@@ -86,7 +90,7 @@ class UnityEnv(gym.Env):
                                   '-logfile',
                                   *(['-batchmode', '-nographics'] if self.batchmode else ['-force-opengl']),
                                   '-screen-width {}'.format(self.w),
-                                  '-screen-height {}'.format(self.h)
+                                  '-screen-height {}'.format(self.h),
                                   ],
                                  env=env,
                                  stderr=subprocess.PIPE,
@@ -108,7 +112,7 @@ class UnityEnv(gym.Env):
         pass
 
       sleep(.1)
-
+    sleep(.5)
     assert self.connected
 
     state, frame = self.recv()
@@ -117,16 +121,16 @@ class UnityEnv(gym.Env):
 
   def recv(self):
     data_in = b""
-    # while len(data_in) < self.BUFFER_SIZE:
-    #   # print('receiving stuff')
-    #   chunk = self.soc.recv(min(1024, self.BUFFER_SIZE - len(data_in)))
-    #   data_in += chunk
-
-    while True:
-      chunk = self.soc.recv(1024)
-      if not chunk:
-        break
+    while len(data_in) < self.BUFFER_SIZE:
+      # print('receiving stuff')
+      chunk = self.soc.recv(min(1024, self.BUFFER_SIZE - len(data_in)))
       data_in += chunk
+
+    # while True:
+    #   chunk = self.soc.recv(1024)
+    #   if not chunk:
+    #     break
+    #   data_in += chunk
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
@@ -179,14 +183,15 @@ def get_free_port(host):
 
 if __name__ == '__main__':
 
-  # import argparse
-  #
-  # parser = argparse.ArgumentParser(description='Unity Gym Environment')
-  # parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
-  # args = parser.parse_args()
-  # print(args.batchmode)
+  import argparse
+
+  parser = argparse.ArgumentParser(description='Unity Gym Environment')
+  parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
+  args = parser.parse_args()
+  print(args.batchmode)
 
   env = UnityEnv()
+  env.configure(batchmode=args.batchmode)
   env.reset()
   for i in range(10000):
     print(i)
