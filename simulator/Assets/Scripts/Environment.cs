@@ -90,8 +90,8 @@ public class Environment : MonoBehaviour
 		foreach (Transform child in markers.transform) {
 			markersPos.Add (child.position);
 		}
-
-	}
+        GenerateFileWithWaypoints();
+    }
 
 	void ComputeDistance ()
 	{
@@ -150,18 +150,28 @@ public class Environment : MonoBehaviour
 		return tex.GetPixels32 ();
 	}
 
-	//void GenerateFileWithWaypoints() {
-	//    string json = JsonConvert.SerializeObject(markersPos.ToArray());
-	//    string path = Application.dataPath + "/waypoints_" + SceneManager.GetActiveScene().name + ".txt";
-	//    System.IO.File.WriteAllText(path, json);
-	//}
+    void GenerateFileWithWaypoints() {
+        List<Vector3_base> data = new List<Vector3_base>();
+        foreach(Vector3 v in markersPos) {
+            data.Add(new Vector3_base(v));
+        }
+        string json = JsonConvert.SerializeObject(data.ToArray());
+        string path = Application.dataPath + "/waypoints_" + SceneManager.GetActiveScene().name + ".txt";
+        System.IO.File.WriteAllText(path, json);
+    }
 
-	public float[] GetState ()
+    public float[] GetState ()
 	{
 		ComputeDistance ();
-		float[] res = new float[2];
+		float[] res = new float[8];
 		res [0] = distanceFromRoad;
 		res [1] = speedAlongRoad;
-		return res;
+        res[2] = GetPosition().x;
+        res[3] = GetPosition().y;
+        res[4] = GetPosition().z;
+        res[5] = currProj.x;
+        res[6] = currProj.y;
+        res[7] = currProj.z;
+        return res;
 	}
 }

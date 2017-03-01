@@ -29,10 +29,11 @@ class UnityEnv(gym.Env):
 
   def _configure(self, w=128, h=128, batchmode=True, *args, **kwargs):
     self.ad = 2
-    self.sd = 2
+    self.sd = 8
     self.w = w
     self.h = h
     self.batchmode = batchmode
+    self.wp = None
     n = 0 if batchmode else self.w * self.h * 4
     self.BUFFER_SIZE = self.sd * 4 + n
     self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
@@ -84,7 +85,7 @@ class UnityEnv(gym.Env):
     # TODO: ensure that the sim doesn't read or write any cache or config files
     self.proc = subprocess.Popen([bin,
                                   '-logfile',
-                                  *(['-batchmode', '-nographics'] if self.batchmode else ['-force-opengl']),
+                                  *(['-batchmode', '-nographics'] if self.batchmode else []),
                                   '-screen-width {}'.format(self.w),
                                   '-screen-height {}'.format(self.h),
                                   ],
@@ -128,9 +129,17 @@ class UnityEnv(gym.Env):
     #     break
     #   data_in += chunk
 
+    # Checking data points are not None, if yes parse them.
+    if self.wp is None:
+      with open(os.path.join(self.sim_path, 'sim_Data', 'waypoints_SimpleTerrain.txt')) as f:
+        wp = json.load(f)
+        self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
+        print(self.wp)
+
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
     print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
+    print("Position = " + str(state[2:4]) + " ; Projection = " + str(state[5:]))
     if self.batchmode:
       frame = None
     else:
