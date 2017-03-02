@@ -29,7 +29,7 @@ class UnityEnv(gym.Env):
 
   def _configure(self, w=128, h=128, batchmode=True, *args, **kwargs):
     self.ad = 2
-    self.sd = 8
+    self.sd = 9
     self.w = w
     self.h = h
     self.batchmode = batchmode
@@ -139,7 +139,8 @@ class UnityEnv(gym.Env):
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
     print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
-    print("Position = " + str(state[2:4]) + " ; Projection = " + str(state[5:]))
+    print("Position = " + str(state[2:4]) + " ; Projection = " + str(state[5:7]))
+    print("Collision detected : " + ("True" if state[8]==1.0 else "False"))
     if self.batchmode:
       frame = None
     else:
@@ -202,6 +203,6 @@ if __name__ == '__main__':
   env.reset()
   for i in range(10000):
     print(i)
-    env.step([1., 1.])
+    env.step([0.0, 1.0])
 
 

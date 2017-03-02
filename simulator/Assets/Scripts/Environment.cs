@@ -21,6 +21,7 @@ public class Environment : MonoBehaviour
 	private float distanceFromRoad = 0.0f;
 	private float speedAlongRoad;
 	private CarController carController;
+    private bool collisionDetected = false;
 
 	internal class PairDistanceVector
 	{
@@ -163,7 +164,7 @@ public class Environment : MonoBehaviour
     public float[] GetState ()
 	{
 		ComputeDistance ();
-		float[] res = new float[8];
+		float[] res = new float[9];
 		res [0] = distanceFromRoad;
 		res [1] = speedAlongRoad;
         res[2] = GetPosition().x;
@@ -172,6 +173,14 @@ public class Environment : MonoBehaviour
         res[5] = currProj.x;
         res[6] = currProj.y;
         res[7] = currProj.z;
+        res[8] = Convert.ToSingle(collisionDetected);
+        
+        collisionDetected = false;
+
         return res;
-	}
+    }
+
+    public void DetectedCollision() {
+        collisionDetected = true;
+    }
 }
