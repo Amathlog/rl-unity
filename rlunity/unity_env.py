@@ -29,7 +29,7 @@ class UnityEnv(gym.Env):
 
   def _configure(self, w=128, h=128, batchmode=True, *args, **kwargs):
     self.ad = 2
-    self.sd = 9
+    self.sd = 15
     self.w = w
     self.h = h
     self.batchmode = batchmode
@@ -78,7 +78,7 @@ class UnityEnv(gym.Env):
     def poll():
       self.proc.wait()
       print(self.proc.stdout.read())
-      print(f'Unity returned with {self.proc.returncode}')
+      #print(f'Unity returned with {self.proc.returncode}')
 
     # https://docs.unity3d.com/Manual/CommandLineArguments.html
 
@@ -139,8 +139,9 @@ class UnityEnv(gym.Env):
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
     print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
-    print("Position = " + str(state[2:4]) + " ; Projection = " + str(state[5:7]))
+    print("Position = " + str(state[2:5]) + " ; Projection = " + str(state[5:8]))
     print("Collision detected : " + ("True" if state[8]==1.0 else "False"))
+    print("Road direction : " + str(state[9:12]) + "; Car direction : " + str(state[12:15]))
     if self.batchmode:
       frame = None
     else:
