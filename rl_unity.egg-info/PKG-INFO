@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: rl-unity
+Version: 0.1
+Summary: OpenAI gym environments powered by the Unity3D engine
+Home-page: https://github.com/amathlog/rl-unity
+Author: Adrien Logut, Simon Ramstedt
+Author-email: simonramstedt@gmail.com
+License: MIT
+Description: UNKNOWN
+Platform: UNKNOWN

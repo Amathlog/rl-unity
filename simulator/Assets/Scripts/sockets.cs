@@ -65,8 +65,8 @@ public class sockets : MonoBehaviour
         serverSocket.Start();
         Debug.Log("Server Started");
 
-        // wait 1s for client to connect
-        for(int i=0; i < 10; i++){
+        // wait 10s for client to connect
+        for(int i=0; i < 100; i++){
             if(serverSocket.Pending()){
                 clientSocket = serverSocket.AcceptTcpClient();
                 Debug.Log("Accepting connection");
@@ -104,6 +104,7 @@ public class sockets : MonoBehaviour
 
             networkStream.Write(data_out, 0, data_out.Length);
             networkStream.Flush();
+            networkStream.
         }
         catch (Exception ex)
         {
