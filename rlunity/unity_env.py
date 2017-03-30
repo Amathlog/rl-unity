@@ -14,9 +14,14 @@ import gym
 from time import sleep
 import json
 import sys
-
+import rlunity
 from gym import spaces
 
+DEBUG = False
+
+pre = print
+if not DEBUG:
+  print = lambda *a: None
 
 class UnityEnv(gym.Env):
 
@@ -26,6 +31,7 @@ class UnityEnv(gym.Env):
     self.proc = None
     self.soc = None
     self._configure()
+    self.stopped = 0
 
   def _configure(self, w=128, h=128, batchmode=True, *args, **kwargs):
     self.ad = 2
@@ -37,11 +43,13 @@ class UnityEnv(gym.Env):
     n = 0 if batchmode else self.w * self.h * 4
     self.BUFFER_SIZE = self.sd * 4 + n
     self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
-    if batchmode:
-      sbm = 2
-      self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
-    else:
-      self.observation_space = spaces.Box(np.zeros([self.w, self.h, 3]), np.ones([self.w, self.h, 3]))
+    # if batchmode:
+    #   sbm = 5
+    #   self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
+    # else:
+    #   self.observation_space = spaces.Box(np.zeros([self.w, self.h, 3]), np.ones([self.w, self.h, 3]))
+    sbm = 5
+    self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
 
   def _reset(self):
     self._close()  # reset
@@ -84,7 +92,7 @@ class UnityEnv(gym.Env):
 
     # TODO: ensure that the sim doesn't read or write any cache or config files
     self.proc = subprocess.Popen([bin,
-                                  '-logfile',
+                                  *(['-logfile'] if DEBUG else []),
                                   *(['-batchmode', '-nographics'] if self.batchmode else []),
                                   '-screen-width {}'.format(self.w),
                                   '-screen-height {}'.format(self.h),
@@ -114,7 +122,7 @@ class UnityEnv(gym.Env):
 
     state, frame = self.recv()
 
-    return frame
+    return state
 
   def recv(self):
     data_in = b""
@@ -138,10 +146,19 @@ class UnityEnv(gym.Env):
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
-    print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
-    print("Position = " + str(state[2:5]) + " ; Projection = " + str(state[5:8]))
-    print("Collision detected : " + ("True" if state[8]==1.0 else "False"))
-    print("Road direction : " + str(state[9:12]) + "; Car direction : " + str(state[12:15]))
+    distance = state[0]
+    speed = state[1]
+    direction = state[12:15] - state[9:12]
+
+    if DEBUG or True:
+      print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
+      print("Position = " + str(state[2:5]) + " ; Projection = " + str(state[5:8]))
+      print("Collision detected : " + ("True" if state[8]==1.0 else "False"))
+      print("Road direction : " + str(state[9:12]) + "; Car direction : " + str(state[12:15]))
+      print("Relative direction:", direction)
+
+    state = np.concatenate(((distance/100., speed * 1), direction))
+
     if self.batchmode:
       frame = None
     else:
@@ -162,8 +179,24 @@ class UnityEnv(gym.Env):
     data_out = a.tobytes()
     self.soc.sendall(data_out)
     state, frame = self.recv()
-    reward = state[0] + state[1]
-    return frame, reward, False, {}
+
+    
+    if np.abs(state[1]) < 0.01:
+      self.stopped += 1
+    else:
+      self.stopped = 0
+
+    done = np.abs(state[0]) > 4. or self.stopped > 60*7
+
+    reward = - state[0]**2 + state[1]
+    if done:
+      self.stopped = 0
+      reward -= 10
+
+    # pre(state, reward)
+    
+
+    return state, reward, done, {}
 
   def _close(self):
     if self.proc:
@@ -173,6 +206,7 @@ class UnityEnv(gym.Env):
 
   def render(self, mode='human', *args, **kwargs):
     if mode == 'rgb_array':
+      # pre(self.last_frame)
       return self.last_frame  # return RGB frame suitable for video
     elif mode is 'human':
       pass  # we do that anyway
@@ -199,7 +233,7 @@ if __name__ == '__main__':
   bm = True
   bm = args.batchmode
 
-  env = UnityEnv()
+  env = gym.make('UnityCar-v0')
   env.configure(batchmode=bm)
   env.reset()
   for i in range(10000):
