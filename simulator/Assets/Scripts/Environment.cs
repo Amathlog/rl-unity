@@ -54,6 +54,17 @@ public class Environment : MonoBehaviour {
 
 	public void MakeAction(float[] actions) {
 		carController.Move(actions[0], actions[1], actions[1], 0f);
+		if (actions[2] != 0.0f) {
+			car.GetComponent<Rigidbody>().velocity = Vector3.zero;
+			car.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+			SetCarPosition();
+		}
+	}
+
+	private void SetCarPosition(){
+		int id = UnityEngine.Random.Range(0, markersPos.Count);
+		car.transform.forward = GetRoadDirectionOnMarker(id);
+		car.transform.position = markersPos[id] + car.transform.right * 2.5f;
 	}
 
 	private byte[] Color32ArrayToByteArray(Color32[] colors) {
@@ -87,6 +98,7 @@ public class Environment : MonoBehaviour {
 			markersPos.Add(child.position);
 		}
 		GenerateFileWithWaypoints();
+		SetCarPosition();
 	}
 
 	void ComputeDistance() {
@@ -155,31 +167,41 @@ public class Environment : MonoBehaviour {
 		System.IO.File.WriteAllText(path, json);
 	}
 
-	public float[] GetState() {
+	public List<float> GetState() {
 		ComputeDistance();
-		float[] res = new float[15];
-		res[0] = distanceFromRoad;
-		res[1] = speedAlongRoad;
-		res[2] = GetPosition().x;
-		res[3] = GetPosition().y;
-		res[4] = GetPosition().z;
-		res[5] = currProj.x;
-		res[6] = currProj.y;
-		res[7] = currProj.z;
-		res[8] = Convert.ToSingle(collisionDetected);
-		res[9] = unitVectorAlongRoad[0];
-		res[10] = unitVectorAlongRoad[1];
-		res[11] = unitVectorAlongRoad[2];
-		res[12] = GetForward().x;
-		res[13] = GetForward().y;
-		res[14] = GetForward().z;
+		List<float> res = new List<float>();
+		res.Add(distanceFromRoad);
+		res.Add(speedAlongRoad);
+		res.AddRange(GetValues(GetPosition()));
+		res.AddRange(GetValues(currProj));
+		res.Add(Convert.ToSingle(collisionDetected));
+		res.AddRange(GetValues(unitVectorAlongRoad));
+		res.AddRange(GetValues(GetForward()));
+
+		res.Insert(0, res.Count);
         
 		collisionDetected = false;
 
 		return res;
 	}
 
+	private List<float> GetValues(Vector3 v){
+		List<float> aux = new List<float>();
+		aux.Add(v.x);
+		aux.Add(v.y);
+		aux.Add(v.z);
+		return aux;
+	}
+
 	public void DetectedCollision() {
 		collisionDetected = true;
+	}
+
+	private Vector3 GetRoadDirectionOnMarker(int markerId){
+		int next = (markerId + 1) % markersPos.Count;
+		int prev = markerId - 1;
+		if (prev == -1)
+			prev = markersPos.Count - 1;
+		return (markersPos[next] - markersPos[prev]) / (2.0f / markersPos.Count);
 	}
 }

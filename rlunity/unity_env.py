@@ -28,8 +28,8 @@ class UnityEnv(gym.Env):
     self._configure()
 
   def _configure(self, w=128, h=128, batchmode=True, *args, **kwargs):
-    self.ad = 2
-    self.sd = 15
+    self.ad = 3
+    self.sd = 16
     self.w = w
     self.h = h
     self.batchmode = batchmode
@@ -136,7 +136,11 @@ class UnityEnv(gym.Env):
         self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
         print(self.wp)
 
-    state = np.frombuffer(data_in, np.float32, self.sd, 0)
+    # Read the number of float sent by the C# side. It's the first number
+    self.sd = int(np.frombuffer(data_in, np.float32, 1, 0))
+    print(self.sd)
+
+    state = np.frombuffer(data_in, np.float32, self.sd, 4)
 
     print("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
     print("Position = " + str(state[2:5]) + " ; Projection = " + str(state[5:8]))
@@ -145,7 +149,7 @@ class UnityEnv(gym.Env):
     if self.batchmode:
       frame = None
     else:
-      frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
+      frame = np.frombuffer(data_in, np.uint8, -1, (self.sd + 1) * 4)
       # print(len(frame))
       frame = np.reshape(frame, [self.w, self.h, 4])
       frame = frame[:, :, :3]
@@ -204,6 +208,9 @@ if __name__ == '__main__':
   env.reset()
   for i in range(10000):
     print(i)
-    env.step([0.0, 1.0])
+    if i % 300 == 0:
+        env.step([0.0, 1.0, 1.0])
+    else:
+        env.step([0.0, 1.0, 0.0])
 
 

@@ -21,8 +21,8 @@ public class sockets : MonoBehaviour
     int t = 0;
     int skipfirst = 10;
 
-    int ad = 2;
-    int sd = 2;
+	int sd;
+    int ad = 3;
 
     bool graphicsMode = true;
 
@@ -91,16 +91,16 @@ public class sockets : MonoBehaviour
             }
 
             // Send distance to the road and vector3 speedAlongTheRoad
-            float[] state = env.GetState();
-            sd = state.Length;
+			List<float> state = env.GetState();
+			sd = state.Count;
 
             print(state);
 
             // Copy the data to send.
-            byte[] data_out = new byte[sd * sizeof(float) + frame.Length];
+			byte[] data_out = new byte[sd * sizeof(float) + frame.Length];
 
-            Buffer.BlockCopy(state, 0, data_out, 0, sd * sizeof(float));
-            Buffer.BlockCopy(frame, 0, data_out, sd * sizeof(float), frame.Length);
+			Buffer.BlockCopy(state.ToArray(), 0, data_out, 0, sd * sizeof(float));
+			Buffer.BlockCopy(frame, 0, data_out, sd * sizeof(float), frame.Length);
 
             networkStream.Write(data_out, 0, data_out.Length);
             networkStream.Flush();
@@ -126,7 +126,7 @@ public class sockets : MonoBehaviour
             Buffer.BlockCopy(data_in, 0, action, 0, data_in.Length);
 
 
-            Debug.Log("a = " + action[0] + ' ' + action[1]);
+			Debug.Log("a = " + action[0] + ' ' + action[1] + ' ' + action[2]);
 
             env.MakeAction(action);
 
