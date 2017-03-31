@@ -25,7 +25,6 @@ class UnityEnv(gym.Env):
   def __init__(self, w=128, h=128, batchmode=True):
     self.proc = None
     self.soc = None
-    self.stopped = 0
     self.connected = False
 
     self.ad = 2
@@ -46,7 +45,7 @@ class UnityEnv(gym.Env):
     self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
     self.log_unity = False
 
-  def _configure(self, loglevel='info', log_unity=False, *args, **kwargs):
+  def _configure(self, loglevel='INFO', log_unity=False, *args, **kwargs):
     logger.setLevel(getattr(logging, loglevel.upper()))
     self.log_unity = log_unity
 
@@ -193,25 +192,6 @@ class UnityEnv(gym.Env):
     data_out = a.tobytes()
     self.soc.sendall(data_out)
 
-  def _step(self, action):
-    action = np.clip(action, -1, 1)
-    self.send(action)
-    state, frame = self.receive()
-
-    if np.abs(state[1]) < 0.01:
-      self.stopped += 1
-    else:
-      self.stopped = 0
-
-    done = np.abs(state[0]) > 4. or self.stopped > 60 * 7
-
-    reward = - state[0] ** 2 + state[1]
-    if done:
-      self.stopped = 0
-      reward -= 10
-
-    return state, reward, done, {}
-
   def _close(self):
     if self.proc:
       self.proc.kill()
@@ -229,7 +209,37 @@ class UnityEnv(gym.Env):
 
 class UnityCar(UnityEnv):
   def __init__(self):
-    UnityEnv.__init__(self, w=128, h=128, batchmode=False)
+    super().__init__(w=128, h=128, batchmode=False)
+    self.t_max = 100000  # about 1h of driving at 30fps
+
+  def _reset(self):
+    state = super()._reset()
+    self.v = np.zeros(self.t_max)
+    self.t = 0
+    return state
+
+  def _step(self, action):
+    action = np.clip(action, -1, 1)
+    self.send(action)
+    state, frame = self.receive()
+
+    self.v[self.t] = state[1]
+
+    t0 = 7*60
+    d0 = self.v[max(0, self.t-t0):self.t].sum()
+    # logger.info(f'd0 = {d0}')
+    done = np.abs(state[0]) > 1.5 or (self.t > t0 and d0 < 0.1)
+
+    reward = .5 - (state[0]-.5) ** 2 + state[1] - action[0] ** 2 - action[1] ** 2
+    if done:
+      reward -= 5
+
+    done = done or self.t == self.t_max
+    self.t += 1
+    return state, reward, done, {}
+
+  def report(self):
+    logger.info(f'Distance driven: {self.v.sum()}')
 
 
 def get_free_port(host):
