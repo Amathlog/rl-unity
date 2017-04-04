@@ -41,11 +41,11 @@ class UnityEnv(gym.Env):
     #   self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
     # else:
     #   self.observation_space = spaces.Box(np.zeros([self.w, self.h, 3]), np.ones([self.w, self.h, 3]))
-    sbm = 5
-    self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
+    self.sbm = 6
+    # self.observation_space = spaces.Box(-np.ones([self.sbm]), np.ones([self.sbm]))
     self.log_unity = False
 
-  def _configure(self, loglevel='INFO', log_unity=False, *args, **kwargs):
+  def conf(self, loglevel='INFO', log_unity=False, *args, **kwargs):
     logger.setLevel(getattr(logging, loglevel.upper()))
     self.log_unity = log_unity
 
@@ -107,7 +107,7 @@ class UnityEnv(gym.Env):
     threading.Thread(target=poll, daemon=True).start()
     threading.Thread(target=stdw, daemon=True).start()
 
-    for i in range(100):
+    for i in range(200):
       if self.proc.poll():
         logger.debug('simulator died')
         break
@@ -130,10 +130,15 @@ class UnityEnv(gym.Env):
       self.connect()
 
     else:
-      self.send(self.action_space.sample(), reset=True)
+      self.send(np.zeros(2), reset=True)
+
+    # TODO: hacked fix for simulator reset bug
+    self.receive()
+    self.send(np.zeros(2), reset=False)
 
     state, frame = self.receive()
-    return state
+
+    return state, frame
 
   def receive(self):
     data_in = b""
@@ -142,7 +147,6 @@ class UnityEnv(gym.Env):
       data_in += chunk
 
     # assert len(data_in) == self.buffer_size
-
 
     # Checking data points are not None, if yes parse them.
     if self.wp is None:
@@ -158,18 +162,6 @@ class UnityEnv(gym.Env):
     assert sd == self.sd
 
     state = np.frombuffer(data_in, np.float32, self.sd, 4)
-
-    distance = state[0]
-    speed = state[1]
-    direction = state[12:15] - state[9:12]
-
-    logger.debug("Distance = " + str(state[0]) + " ; Speed along road = " + str(state[1]))
-    logger.debug("Position = " + str(state[2:5]) + " ; Projection = " + str(state[5:8]))
-    logger.debug("Collision detected : " + ("True" if state[8] == 1.0 else "False"))
-    logger.debug("Road direction : " + str(state[9:12]) + "; Car direction : " + str(state[12:15]))
-    logger.debug("Relative direction: " + str(direction))
-
-    state = np.concatenate(((distance / 100., speed * 1), direction))
 
     if self.batchmode:
       frame = None
@@ -212,10 +204,41 @@ class UnityCar(UnityEnv):
     super().__init__(w=128, h=128, batchmode=False)
     self.t_max = 100000  # about 1h of driving at 30fps
 
+    self.t0 = 7*60
+
+    sbm = self.sbm + 33
+    self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
+
+  def process_raw_state(self, raw_state):
+    logger.debug("Distance = " + str(raw_state[0]) + " ; Speed along road = " + str(raw_state[1]))
+    logger.debug("Position = " + str(raw_state[2:5]) + " ; Projection = " + str(raw_state[5:8]))
+    logger.debug("Collision detected : " + ("True" if raw_state[8] == 1.0 else "False"))
+    logger.debug("Road direction : " + str(raw_state[9:12]) + "; Car direction : " + str(raw_state[12:15]))
+
+    pos = self.wp - raw_state[2:5]
+
+    pos_fp = np.exp(- np.sum(np.square(pos), axis=1) / 100)
+    # print(pos_fp)
+
+    direction = raw_state[12:15] - raw_state[9:12]
+
+    self.v[self.t] = raw_state[1]
+    av_speed = self.v[max(0, self.t - self.t0):self.t+1].mean()
+
+    return np.concatenate(((
+        raw_state[0] / 100,  # distance from road center (in meters) TODO: verify
+        raw_state[1],  # speed projected onto road (in meters / s) TODO: verify
+        av_speed,  # running average of the speed
+      ),
+      direction,  # direction relative to road
+      pos_fp,  # radial basis functions of location w.r.t. the waypoints
+    ))
+
   def _reset(self):
-    state = super()._reset()
     self.v = np.zeros(self.t_max)
     self.t = 0
+    state, frame = super()._reset()
+    state = self.process_raw_state(state)
     return state
 
   def _step(self, action):
@@ -223,19 +246,30 @@ class UnityCar(UnityEnv):
     self.send(action)
     state, frame = self.receive()
 
-    self.v[self.t] = state[1]
+    state = self.process_raw_state(state)
 
-    t0 = 7*60
-    d0 = self.v[max(0, self.t-t0):self.t].sum()
+    distance = state[0]
+    speed = state[1]
+    av_speed = state[2]
+
+    direction = state[3:6]
+
     # logger.info(f'd0 = {d0}')
-    done = np.abs(state[0]) > 1.5 or (self.t > t0 and d0 < 0.1)
+    done = np.abs(distance) > 1.5 or (self.t > self.t0 and av_speed < 0.1)
 
-    reward = .5 - (state[0]-.5) ** 2 + state[1] - action[0] ** 2 - action[1] ** 2
+    r_speed = speed
+    # r_speed = 0.1 - .1 * (speed - 1)**2
+
+    reward = .5 - 1 * (distance - .5) ** 2 + r_speed - .01 * action[0] ** 2 - .01 * action[1] ** 2
     if done:
-      reward -= 5
+      reward -= 30
 
-    done = done or self.t == self.t_max
+    reward = 5 * reward
+
+    done = done or self.t+1 >= self.t_max
+
     self.t += 1
+
     return state, reward, done, {}
 
   def report(self):
@@ -252,6 +286,7 @@ def get_free_port(host):
 
 if __name__ == '__main__':
   import argparse
+
   parser = argparse.ArgumentParser(description='Unity Gym Environment')
   parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
   args = parser.parse_args()
@@ -259,12 +294,13 @@ if __name__ == '__main__':
   bm = args.batchmode
 
   import rlunity
+
   env = gym.make('UnityCar-v0')  # requires import rlunity
-  env.configure(loglevel='debug', log_unity=True)
+  env.unwrapped.conf(loglevel='debug', log_unity=True)
   env.reset()
   for i in range(10000):
     print(i)
     env.step([1.0, 1.0])
 
-    if (i+1) % 300 == 0:
+    if (i + 1) % 300 == 0:
       env.reset()

@@ -70,6 +70,7 @@ public class sockets : MonoBehaviour
             if(serverSocket.Pending()){
                 clientSocket = serverSocket.AcceptTcpClient();
                 Debug.Log("Accepting connection");
+                break;
             }
             System.Threading.Thread.Sleep(100);
         }
@@ -104,7 +105,6 @@ public class sockets : MonoBehaviour
 
             networkStream.Write(data_out, 0, data_out.Length);
             networkStream.Flush();
-            networkStream.
         }
         catch (Exception ex)
         {
