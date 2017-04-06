@@ -22,6 +22,7 @@ public class Environment : MonoBehaviour {
 	private float speedAlongRoad;
 	private CarController carController;
 	private bool collisionDetected = false;
+	private Camera m_cam;
 
 	internal class PairDistanceVector {
 		public int number;
@@ -90,6 +91,7 @@ public class Environment : MonoBehaviour {
 
 	void Start() {
 		carController = car.GetComponent<CarController>();
+		m_cam = cam.GetComponent<Camera>();
 		markersPos = new List<Vector3> ();
 		lastProj = GetPosition();
 		currProj = lastProj;
@@ -151,10 +153,21 @@ public class Environment : MonoBehaviour {
 	}
 
 	Color32[] ReadScreenImmediate() {
-		Texture2D tex = cam.GetComponent<CameraCapture>().RenderResult;
+		RenderTexture currentRT = RenderTexture.active;
+		RenderTexture auxRT = new RenderTexture (Screen.width, Screen.height, 16);
+		RenderTexture.active = auxRT;
+		m_cam.targetTexture = auxRT;
+		m_cam.Render();
+		Texture2D image = new Texture2D(auxRT.width, auxRT.height);
+		image.ReadPixels(new Rect(0, 0, auxRT.width, auxRT.height), 0, 0);
+		image.Apply();
+		RenderTexture.active = currentRT;
+		m_cam.targetTexture = null;
+		return image.GetPixels32();
+		/*Texture2D tex = cam.GetComponent<CameraCapture>().RenderResult;
 		if (tex == null)
 			return null;
-		return tex.GetPixels32();
+		return tex.GetPixels32();*/
 	}
 
 	void GenerateFileWithWaypoints() {
@@ -165,6 +178,11 @@ public class Environment : MonoBehaviour {
 		string json = JsonConvert.SerializeObject(data.ToArray());
 		string path = Application.dataPath + "/waypoints_" + SceneManager.GetActiveScene().name + ".txt";
 		System.IO.File.WriteAllText(path, json);
+	}
+
+	void Update(){
+		Color32[] aux = ReadScreenImmediate();
+		print(aux[0]);
 	}
 
 	public List<float> GetState() {
