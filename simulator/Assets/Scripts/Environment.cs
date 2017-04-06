@@ -180,11 +180,6 @@ public class Environment : MonoBehaviour {
 		System.IO.File.WriteAllText(path, json);
 	}
 
-	void Update(){
-		Color32[] aux = ReadScreenImmediate();
-		print(aux[0]);
-	}
-
 	public List<float> GetState() {
 		ComputeDistance();
 		List<float> res = new List<float>();
