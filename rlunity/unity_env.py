@@ -28,13 +28,13 @@ class UnityEnv(gym.Env):
     self.connected = False
 
     self.ad = 2
-    self.sd = 15  # TODO: has to remain fixed
+    self.sd = 16  # TODO: has to remain fixed
     self.w = w
     self.h = h
     self.batchmode = batchmode
     self.wp = None
     pixel_buffer_size = 0 if batchmode else self.w * self.h * 4
-    self.buffer_size = (1 + self.sd) * 4 + pixel_buffer_size
+    self.buffer_size = self.sd * 4 + pixel_buffer_size
     self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
     # if batchmode:
     #   sbm = 5
@@ -157,16 +157,16 @@ class UnityEnv(gym.Env):
 
     # TODO: @Adrien self.sd has to remain constant after __init__
     # Read the number of float sent by the C# side. It's the first number
-    sd = int(np.frombuffer(data_in, np.float32, 1, 0))
-    logger.debug(f'State dimension expected: {self.sd}, received: {sd}')
-    assert sd == self.sd
+    # sd = int(np.frombuffer(data_in, np.float32, 1, 0))
+    # logger.debug(f'State dimension expected: {self.sd}, received: {sd}')
+    # assert sd == self.sd
 
-    state = np.frombuffer(data_in, np.float32, self.sd, 4)
+    state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
     if self.batchmode:
       frame = None
     else:
-      frame = np.frombuffer(data_in, np.uint8, -1, (self.sd + 1) * 4)
+      frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
       # logger.debug(str(len(frame)))
       frame = np.reshape(frame, [self.w, self.h, 4])
       frame = frame[:, :, :3]
@@ -214,6 +214,7 @@ class UnityCar(UnityEnv):
     logger.debug("Position = " + str(raw_state[2:5]) + " ; Projection = " + str(raw_state[5:8]))
     logger.debug("Collision detected : " + ("True" if raw_state[8] == 1.0 else "False"))
     logger.debug("Road direction : " + str(raw_state[9:12]) + "; Car direction : " + str(raw_state[12:15]))
+    logger.debug("Next angle : " + str(raw_state[15]))
 
     pos = self.wp - raw_state[2:5]
 

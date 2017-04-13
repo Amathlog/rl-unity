@@ -95,7 +95,7 @@ public class sockets : MonoBehaviour
 			List<float> state = env.GetState();
 			sd = state.Count;
 
-            print(state);
+            //print(state);
 
             // Copy the data to send.
 			byte[] data_out = new byte[sd * sizeof(float) + frame.Length];
@@ -127,7 +127,7 @@ public class sockets : MonoBehaviour
             Buffer.BlockCopy(data_in, 0, action, 0, data_in.Length);
 
 
-			Debug.Log("a = " + action[0] + ' ' + action[1] + ' ' + action[2]);
+			//Debug.Log("a = " + action[0] + ' ' + action[1] + ' ' + action[2]);
 
             env.MakeAction(action);
 
@@ -145,12 +145,12 @@ public class sockets : MonoBehaviour
         if(clientSocket != null){
 
             if (t == skipfirst){
-                print("init send at t=" + t);
+                //print("init send at t=" + t);
                 Send(); // initial observation
             }
             else if (t > skipfirst)
             {
-                print("interact");
+                //print("interact");
                 Receive();
                 Send();
             }
