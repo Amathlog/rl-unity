@@ -23,6 +23,7 @@ class UnityCar(UnityEnv):
     logger.debug("Position = " + str(raw_state[2:5]) + " ; Projection = " + str(raw_state[5:8]))
     logger.debug("Collision detected : " + ("True" if raw_state[8] == 1.0 else "False"))
     logger.debug("Road direction : " + str(raw_state[9:12]) + "; Car direction : " + str(raw_state[12:15]))
+    logger.debug("Next angle :" + str(raw_state[15]))
 
     # radial basis function features
     pos = self.wp - raw_state[2:5]
@@ -83,16 +84,10 @@ class UnityCar(UnityEnv):
     logger.info(f'Distance driven: {self.v.sum()}')
 
 
-if __name__ == '__main__':
-  import argparse
-
-  parser = argparse.ArgumentParser(description='Unity Gym Environment')
-  parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
-  args = parser.parse_args()
-  logger.debug('Batchmode ' + str(args.batchmode))
-  bm = args.batchmode
-
+def test_unity_car():
+  import logging
   import rlunity
+  logger.setLevel(logging.DEBUG)
 
   env = gym.make('UnityCar-v0')  # requires import rlunity
   env.unwrapped.conf(loglevel='debug', log_unity=True)
@@ -103,3 +98,7 @@ if __name__ == '__main__':
 
     if (i + 1) % 300 == 0:
       env.reset()
+
+
+if __name__ == '__main__':
+  test_unity_car()

@@ -159,18 +159,16 @@ class UnityEnv(gym.Env):
         logger.debug(str(self.wp))
 
     # Read the number of float sent by the C# side. It's the first number
-    sd = int(np.frombuffer(data_in, np.float32, 1, 0))
-    logger.debug(f'State dimension expected: {self.sd}, received: {sd}')
-    assert sd == self.sd
+    # sd = int(np.frombuffer(data_in, np.float32, 1, 0))
+    # assert sd == self.sd, f'State dimension expected: {self.sd}, received: {sd}'
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
     if self.batchmode:
       frame = None
     else:
-      frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
       # convert frame pixel data into a numpy array of shape [width, height, 3]
-      frame = np.frombuffer(data_in, np.uint8, -1, (self.sd + 1) * 4)
+      frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
       # logger.debug(str(len(frame)))
       frame = np.reshape(frame, [self.w, self.h, 4])
       frame = frame[::-1, :, :3]
