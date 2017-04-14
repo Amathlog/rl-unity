@@ -28,13 +28,13 @@ class UnityEnv(gym.Env):
     self.connected = False
 
     self.ad = 2
-    self.sd = 15  # TODO: has to remain fixed
+    self.sd = 16  # TODO: has to remain fixed
     self.w = w
     self.h = h
     self.batchmode = batchmode
     self.wp = None
     pixel_buffer_size = 0 if batchmode else self.w * self.h * 4
-    self.buffer_size = (1 + self.sd) * 4 + pixel_buffer_size
+    self.buffer_size = self.sd * 4 + pixel_buffer_size
     self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
     # if batchmode:
     #   sbm = 5
@@ -163,11 +163,12 @@ class UnityEnv(gym.Env):
     logger.debug(f'State dimension expected: {self.sd}, received: {sd}')
     assert sd == self.sd
 
-    state = np.frombuffer(data_in, np.float32, self.sd, 4)
+    state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
     if self.batchmode:
       frame = None
     else:
+      frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
       # convert frame pixel data into a numpy array of shape [width, height, 3]
       frame = np.frombuffer(data_in, np.uint8, -1, (self.sd + 1) * 4)
       # logger.debug(str(len(frame)))

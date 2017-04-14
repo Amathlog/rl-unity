@@ -18,6 +18,8 @@ public class Environment : MonoBehaviour {
 	private Vector3 lastProj;
 	private Vector3 currProj;
 	private Vector3 unitVectorAlongRoad;
+	private Vector3 unitVectorAlongRoadOneStepAhead;
+	private float nextAngle;
 	private float distanceFromRoad = 0.0f;
 	private float speedAlongRoad;
 	private CarController carController;
@@ -112,23 +114,28 @@ public class Environment : MonoBehaviour {
 		// We want AB vector along the road. Therefore A must have a lower indice 
 		// in markerPos than B (except when it's the first and last items, therefore the 
 		// last item need to be first.
-		Vector3 a, b;
+		Vector3 a, b, c;
 		if (distances[0].number == 0 && distances[1].number == markersPos.Count - 1) {
 			a = markersPos[distances[1].number];
 			b = markersPos[distances[0].number];
+			c = markersPos[distances[0].number + 1];
 		} else if (distances[1].number == 0 && distances[0].number == markersPos.Count - 1) {
 			a = markersPos[distances[0].number];
 			b = markersPos[distances[1].number];
+			c = markersPos[distances[1].number + 1];
 		} else if (distances[0].number > distances[1].number) {
 			a = markersPos[distances[1].number];
 			b = markersPos[distances[0].number];
+			c = markersPos[distances[0].number + 1];
 		} else {
 			a = markersPos[distances[0].number];
 			b = markersPos[distances[1].number];
+			c = markersPos[distances[1].number + 1];
 		}
 		// u is the unit vector associated to AB
 		Vector3 u = (b - a).normalized;
 		unitVectorAlongRoad = u;
+		unitVectorAlongRoadOneStepAhead = (c - b).normalized;
 		//v is the vector associated to AC (C is the position of the car)
 		Vector3 v = GetPosition() - a;
 
@@ -149,7 +156,12 @@ public class Environment : MonoBehaviour {
 		// Square distance, Pythagorean theorem in the triangle A-C-proj
 		// Negative if left to the road; Positive if right to the road
 		distanceFromRoad = Mathf.Sign(Vector3.Cross(u, v.normalized).y) * (v.sqrMagnitude - (currProj - a).sqrMagnitude);
-
+	
+		// Compute the angle between AB and BC to get the next angle with the road
+		// Since it's control points, it's not as precise as it should be (it should be spine interpolated)
+		// But we get an approximation of the road shape
+		float angle = Mathf.Acos(Vector3.Dot(unitVectorAlongRoad, unitVectorAlongRoadOneStepAhead));
+		nextAngle = Mathf.Sign(Vector3.Cross(unitVectorAlongRoad, unitVectorAlongRoadOneStepAhead).y) * angle;
 	}
 
 	Color32[] ReadScreenImmediate() {
@@ -169,6 +181,17 @@ public class Environment : MonoBehaviour {
 			return null;
 		return tex.GetPixels32();*/
 	}
+
+//	void FixedUpdate(){
+//		//Color32[] aux = ReadScreenImmediate();
+//		List<float> aux = GetState();
+//		string res = "[";
+//		foreach(float f in aux){
+//			res += f.ToString() + ", ";
+//		}
+//		res += "]";
+//		print(res);
+//	}
 
 	void GenerateFileWithWaypoints() {
 		List<Vector3_base> data = new List<Vector3_base> ();
@@ -190,13 +213,17 @@ public class Environment : MonoBehaviour {
 		res.Add(Convert.ToSingle(collisionDetected));
 		res.AddRange(GetValues(unitVectorAlongRoad));
 		res.AddRange(GetValues(GetForward()));
-
-		res.Insert(0, res.Count);
+		res.Add(nextAngle);
         
 		collisionDetected = false;
 
 		return res;
 	}
+
+//	void FixedUpdate(){
+//		ComputeDistance();
+//		print("Next angle =" + nextAngle);
+//	}
 
 	private List<float> GetValues(Vector3 v){
 		List<float> aux = new List<float>();
