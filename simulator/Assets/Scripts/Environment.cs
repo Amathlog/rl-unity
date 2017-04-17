@@ -34,6 +34,11 @@ public class Environment : MonoBehaviour {
 			this.number = number;
 			this.dist = dist;
 		}
+
+        
+        public override string ToString() {
+            return "Number=" + number + "; dist=" + dist;
+        }
 	}
 
 	internal class ComparePairDistanceVector : IComparer<PairDistanceVector> {
@@ -126,11 +131,11 @@ public class Environment : MonoBehaviour {
 		} else if (distances[0].number > distances[1].number) {
 			a = markersPos[distances[1].number];
 			b = markersPos[distances[0].number];
-			c = markersPos[distances[0].number + 1];
+			c = markersPos[(distances[0].number + 1) % markersPos.Count];
 		} else {
 			a = markersPos[distances[0].number];
 			b = markersPos[distances[1].number];
-			c = markersPos[distances[1].number + 1];
+			c = markersPos[(distances[1].number + 1) % markersPos.Count];
 		}
 		// u is the unit vector associated to AB
 		Vector3 u = (b - a).normalized;
@@ -220,12 +225,12 @@ public class Environment : MonoBehaviour {
 		return res;
 	}
 
-//	void FixedUpdate(){
-//		ComputeDistance();
-//		print("Next angle =" + nextAngle);
-//	}
+    //void FixedUpdate() {
+    //    ComputeDistance();
+    //    print("Next angle =" + nextAngle);
+    //}
 
-	private List<float> GetValues(Vector3 v){
+    private List<float> GetValues(Vector3 v){
 		List<float> aux = new List<float>();
 		aux.Add(v.x);
 		aux.Add(v.y);
