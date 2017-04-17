@@ -9,7 +9,6 @@ import json
 import sys
 from gym import spaces
 import logging
-
 logger = logging.getLogger('UnityEnv')
 
 
@@ -44,13 +43,16 @@ class UnityEnv(gym.Env):
     self.sbm = 6
     # self.observation_space = spaces.Box(-np.ones([self.sbm]), np.ones([self.sbm]))
     self.log_unity = False
+    self.logfile = None
+    self.restart = False
 
-  def conf(self, loglevel='INFO', log_unity=False, *args, **kwargs):
+  def conf(self, loglevel='INFO', log_unity=False, logfile=None, *args, **kwargs):
     logger.setLevel(getattr(logging, loglevel.upper()))
     self.log_unity = log_unity
+    if logfile:
+      self.logfile = open(logfile, 'w')
 
   def connect(self):
-    self._close()  # reset
     self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     host = '127.0.0.1'
     port = get_free_port(host)
@@ -82,8 +84,13 @@ class UnityEnv(gym.Env):
         sys.stdout.flush()
 
     def poll():
-      self.proc.wait()
-      logger.debug(f'Unity returned with {self.proc.stdout.read()}')
+      while not self.proc.poll():
+        limit = 3
+        if memory_usage(self.proc.pid) > limit * 1024**3:
+          logger.warning(f'Memory usage above {limit} gb. Restarting after this episode.')
+          self.restart = True
+        sleep(5)
+      logger.debug(f'Unity returned with {self.proc.returncode}')
 
     # https://docs.unity3d.com/Manual/CommandLineArguments.html
 
@@ -93,6 +100,21 @@ class UnityEnv(gym.Env):
       from shutil import rmtree
       rmtree(config_dir, ignore_errors=True)
 
+    def limit():
+      import resource
+      l = 6 * 1024**3  # allow 3 gb of address space (less than 3 gb makes the sim crash on startup)
+      try:
+        # resource.setrlimit(resource.RLIMIT_RSS, (l, l))
+        # resource.setrlimit(resource.RLIMIT_DATA, (l, l))
+        # resource.setrlimit(resource.RLIMIT_AS, (l, resource.RLIM_INFINITY))
+        pass
+      except Exception as e:
+        print(e)
+        raise
+
+
+    stderr = self.logfile if self.logfile else (subprocess.PIPE if self.log_unity else subprocess.DEVNULL)
+    import shutil
     self.proc = subprocess.Popen([bin,
                                   *(['-logfile'] if self.log_unity else []),
                                   *(['-batchmode', '-nographics'] if self.batchmode else []),
@@ -100,12 +122,14 @@ class UnityEnv(gym.Env):
                                   '-screen-height {}'.format(self.h),
                                   ],
                                  env=env,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT,
-                                 universal_newlines=True)
+                                 stdout=stderr,
+                                 stderr=stderr,
+                                 universal_newlines=True,
+                                 preexec_fn=limit)
 
     threading.Thread(target=poll, daemon=True).start()
-    threading.Thread(target=stdw, daemon=True).start()
+
+    # threading.Thread(target=stdw, daemon=True).start()
 
     # wait until connection with simulator process
     timeout = 20
@@ -116,7 +140,7 @@ class UnityEnv(gym.Env):
 
       try:
         self.soc.connect((host, port))
-        self.soc.settimeout(120.)
+        self.soc.settimeout(20*60) # 20 minutes
         self.connected = True
         break
       except ConnectionRefusedError as e:
@@ -129,6 +153,10 @@ class UnityEnv(gym.Env):
       raise ConnectionRefusedError('Connection with simulator could not be established.')
 
   def _reset(self):
+    if self.restart:
+      self.disconnect()
+      self.restart = False
+
     if not self.connected:
       self.connect()
 
@@ -186,11 +214,21 @@ class UnityEnv(gym.Env):
     data_out = a.tobytes()
     self.soc.sendall(data_out)
 
-  def _close(self):
+  def disconnect(self):
     if self.proc:
       self.proc.kill()
     if self.soc:
       self.soc.close()
+    self.connected = False
+
+  def _close(self):
+    logger.debug('close')
+    if self.proc:
+      self.proc.kill()
+    if self.soc:
+      self.soc.close()
+    if self.logfile:
+      self.logfile.close()
 
   def render(self, mode='human', *args, **kwargs):
     if mode == 'rgb_array':
@@ -209,3 +247,14 @@ def get_free_port(host):
   return port
 
 
+def memory_usage(pid):
+  import psutil
+  proc = psutil.Process(pid)
+  mem = proc.memory_info().rss  # resident memory
+  for child in proc.children(recursive=True):
+    try:
+      mem += child.memory_info().rss
+    except psutil.NoSuchProcess:
+      pass
+
+  return mem
