@@ -79,6 +79,9 @@ public class sockets : MonoBehaviour
             Debug.Log("No connection");
         }
 
+        // attempt to reduce memory footprint
+        Resources.UnloadUnusedAssets();
+
     }
 
     void Send(){
