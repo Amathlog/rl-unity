@@ -25,6 +25,8 @@ public class Environment : MonoBehaviour {
 	private CarController carController;
 	private bool collisionDetected = false;
 	private Camera m_cam;
+    private Color32[] rendered_screen = null;
+    private bool isUpdating = false;
 
 	internal class PairDistanceVector {
 		public int number;
@@ -48,7 +50,7 @@ public class Environment : MonoBehaviour {
 	}
 
 	public byte[] GetFrame() {
-		byte[] res = Color32ArrayToByteArray(ReadScreenImmediate());
+		byte[] res = Color32ArrayToByteArray(rendered_screen);
 		return res;
 	}
 
@@ -108,7 +110,7 @@ public class Environment : MonoBehaviour {
 		}
 		GenerateFileWithWaypoints();
 		SetCarPosition();
-	}
+    }
 
 	void ComputeDistance() {
 		List<PairDistanceVector> distances = new List<PairDistanceVector> ();
@@ -169,36 +171,65 @@ public class Environment : MonoBehaviour {
 		nextAngle = Mathf.Sign(Vector3.Cross(unitVectorAlongRoad, unitVectorAlongRoadOneStepAhead).y) * angle;
 	}
 
-	Color32[] ReadScreenImmediate() {
-		RenderTexture currentRT = RenderTexture.active;
-		RenderTexture auxRT = new RenderTexture (Screen.width, Screen.height, 16);
-		RenderTexture.active = auxRT;
-		m_cam.targetTexture = auxRT;
-		m_cam.Render();
-		Texture2D image = new Texture2D(auxRT.width, auxRT.height);
-		image.ReadPixels(new Rect(0, 0, auxRT.width, auxRT.height), 0, 0);
-		image.Apply();
-		RenderTexture.active = currentRT;
-		m_cam.targetTexture = null;
-		return image.GetPixels32();
-		/*Texture2D tex = cam.GetComponent<CameraCapture>().RenderResult;
+    IEnumerator UpdateScreenBuffer() {
+        isUpdating = true;
+
+        yield return new WaitForEndOfFrame();
+
+        // Create a texture the size of the screen, RGB24 format
+        int width = Screen.width;
+        int height = Screen.height;
+        Texture2D tex = new Texture2D(width, height, TextureFormat.RGB24, false);
+
+        // Read screen contents into the texture
+        tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+        tex.Apply();
+
+        rendered_screen = tex.GetPixels32();
+
+        Destroy(tex);
+
+        isUpdating = false;
+    }
+
+	//Color32[] ReadScreenImmediate() {
+        //RenderTexture currentRT = RenderTexture.active;
+        //RenderTexture auxRT = new RenderTexture (Screen.width, Screen.height, 16);
+        //RenderTexture.active = auxRT;
+        //m_cam.targetTexture = auxRT;
+        //m_cam.Render();
+        //Texture2D image = new Texture2D(auxRT.width, auxRT.height);
+        //image.ReadPixels(new Rect(0, 0, auxRT.width, auxRT.height), 0, 0);
+        //image.Apply();
+        //RenderTexture.active = currentRT;
+        //m_cam.targetTexture = null;
+        //return image.GetPixels32();
+        /*Texture2D tex = cam.GetComponent<CameraCapture>().RenderResult;
 		if (tex == null)
 			return null;
 		return tex.GetPixels32();*/
-	}
+    //}
 
-//	void FixedUpdate(){
-//		//Color32[] aux = ReadScreenImmediate();
-//		List<float> aux = GetState();
-//		string res = "[";
-//		foreach(float f in aux){
-//			res += f.ToString() + ", ";
-//		}
-//		res += "]";
-//		print(res);
-//	}
+    void FixedUpdate() {
+        if (!isUpdating) {
+            isUpdating = true;
+            StartCoroutine(UpdateScreenBuffer());
+        }
+        //byte[] aux2 = GetFrame();
+        //List<float> aux = GetState();
+        //string res = "[";
+        //foreach (float f in aux) {
+        //    res += f.ToString() + ", ";
+        //}
+        //res += "]";
+        //print(res);
+        //if (aux2 == null)
+        //    print("Frame is null...");
+        //else
+        //    print("[" + aux2[0] + ";" + aux2[1] + ";" + aux2[2] + ";" + aux2[3] + "]");
+    }
 
-	void GenerateFileWithWaypoints() {
+    void GenerateFileWithWaypoints() {
 		List<Vector3_base> data = new List<Vector3_base> ();
 		foreach (Vector3 v in markersPos) {
 			data.Add(new Vector3_base (v));
