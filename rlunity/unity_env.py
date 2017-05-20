@@ -9,6 +9,7 @@ import json
 import sys
 from gym import spaces
 import logging
+
 logger = logging.getLogger('UnityEnv')
 
 
@@ -19,21 +20,19 @@ class UnityEnv(gym.Env):
   and
   https://github.com/openai/gym/tree/master/gym/envs#how-to-create-new-environments-for-gym
   """
-  metadata = {'render.modes': ['human', 'rgb_array']}
+  metadata = {'render.modes': ['human', 'rgb_array'],
+              'video.frames_per_second': 20}
 
-  def __init__(self, w=128, h=128, batchmode=True):
+  def __init__(self, batchmode=False):
     self.proc = None
     self.soc = None
     self.connected = False
 
     self.ad = 2
     self.sd = 16  # TODO: has to remain fixed
-    self.w = w
-    self.h = h
     self.batchmode = batchmode
     self.wp = None
-    pixel_buffer_size = 0 if batchmode else self.w * self.h * 4
-    self.buffer_size = self.sd * 4 + pixel_buffer_size
+
     self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
     # if batchmode:
     #   sbm = 5
@@ -45,12 +44,18 @@ class UnityEnv(gym.Env):
     self.log_unity = False
     self.logfile = None
     self.restart = False
+    self.configured = False
 
-  def conf(self, loglevel='INFO', log_unity=False, logfile=None, *args, **kwargs):
+  def conf(self, loglevel='INFO', log_unity=False, logfile=None, w=128, h=128, *args, **kwargs):
     logger.setLevel(getattr(logging, loglevel.upper()))
     self.log_unity = log_unity
     if logfile:
       self.logfile = open(logfile, 'w')
+
+    assert w >= 100 and h >= 100, 'the simulator does not support smaller resolutions than 100 at the moment'
+    self.w = w
+    self.h = h
+    self.configured = True
 
   def connect(self):
     self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -86,7 +91,7 @@ class UnityEnv(gym.Env):
     def poll():
       while not self.proc.poll():
         limit = 3
-        if memory_usage(self.proc.pid) > limit * 1024**3:
+        if memory_usage(self.proc.pid) > limit * 1024 ** 3:
           logger.warning(f'Memory usage above {limit} gb. Restarting after this episode.')
           self.restart = True
         sleep(5)
@@ -102,7 +107,7 @@ class UnityEnv(gym.Env):
 
     def limit():
       import resource
-      l = 6 * 1024**3  # allow 3 gb of address space (less than 3 gb makes the sim crash on startup)
+      l = 6 * 1024 ** 3  # allow 3 gb of address space (less than 3 gb makes the sim crash on startup)
       try:
         # resource.setrlimit(resource.RLIMIT_RSS, (l, l))
         # resource.setrlimit(resource.RLIMIT_DATA, (l, l))
@@ -111,7 +116,6 @@ class UnityEnv(gym.Env):
       except Exception as e:
         print(e)
         raise
-
 
     stderr = self.logfile if self.logfile else (subprocess.PIPE if self.log_unity else subprocess.DEVNULL)
     import shutil
@@ -140,7 +144,7 @@ class UnityEnv(gym.Env):
 
       try:
         self.soc.connect((host, port))
-        self.soc.settimeout(20*60) # 20 minutes
+        self.soc.settimeout(20 * 60)  # 20 minutes
         self.connected = True
         break
       except ConnectionRefusedError as e:
@@ -153,6 +157,9 @@ class UnityEnv(gym.Env):
       raise ConnectionRefusedError('Connection with simulator could not be established.')
 
   def _reset(self):
+    if not self.configured:
+      self.conf()
+
     if self.restart:
       self.disconnect()
       self.restart = False
@@ -173,18 +180,23 @@ class UnityEnv(gym.Env):
     return state, frame
 
   def receive(self):
+    pixel_buffer_size = 0 if self.batchmode else self.w * self.h * 4
+    buffer_size = self.sd * 4 + pixel_buffer_size
     # receive data from simulator process
     data_in = b""
-    while len(data_in) < self.buffer_size:
-      chunk = self.soc.recv(min(1024, self.buffer_size - len(data_in)))
+    while len(data_in) < buffer_size:
+      chunk = self.soc.recv(min(1024, buffer_size - len(data_in)))
       data_in += chunk
 
     # Checking data points are not None, if yes parse them.
     if self.wp is None:
       with open(os.path.join(self.sim_path, 'sim_Data', 'waypoints_SimpleTerrain.txt')) as f:
-        wp = json.load(f)
-        self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
-        logger.debug(str(self.wp))
+        try:
+          wp = json.load(f)
+          self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
+          logger.debug(str(self.wp))
+        except json.JSONDecodeError:
+          self.wp = None
 
     # Read the number of float sent by the C# side. It's the first number
     # sd = int(np.frombuffer(data_in, np.float32, 1, 0))
@@ -230,13 +242,13 @@ class UnityEnv(gym.Env):
     if self.logfile:
       self.logfile.close()
 
-  def render(self, mode='human', *args, **kwargs):
+  def _render(self, mode='human', close=False):
     if mode == 'rgb_array':
       return self.last_frame  # return RGB frame suitable for video
     elif mode is 'human':
       pass  # we do that anyway
     else:
-      super().render(mode=mode)  # just raise an exception
+      super()._render(mode, close)  # just raise an exception
 
 
 def get_free_port(host):

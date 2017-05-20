@@ -34,6 +34,10 @@ public class sockets : MonoBehaviour
         width = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_WIDTH"));
         height = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_HEIGHT"));
 
+        // make framerate constant
+        // https://docs.unity3d.com/ScriptReference/Time-captureFramerate.html
+        Time.captureFramerate = 20;
+
         // Check if it's graphics mode
         string commandLineOptions = System.Environment.CommandLine;
 
@@ -52,7 +56,7 @@ public class sockets : MonoBehaviour
         Debug.Log("Width:" + width);
         Debug.Log("Height:" + height);
 
-        Screen.SetResolution (width, height, false);  // width, height, windowed
+        Screen.SetResolution(width, height, false);  // width, height, windowed
         AudioListener.pause = true;
         AudioListener.volume = 0;
 

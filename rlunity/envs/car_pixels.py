@@ -12,13 +12,15 @@ class UnityCarPixels(UnityEnv):
   a = [steering wheel (right positive), throttle]
   """
   def __init__(self):
-    super().__init__(w=128, h=128, batchmode=False)
-    self.t_max = 100000  # about 1h of driving at 30fps
+    super().__init__(batchmode=False)
+    self.t_max = 20 * 60 * 10
 
-    self.t0 = 7*60
+    self.t0 = 20 * 7
 
     sbm = self.sbm
     self.observation_space = spaces.Box(0, 255, shape=[84, 84])
+    self.reward_range = (-.1, .1)
+    self.r = 0
 
   def process_raw_state(self, raw_state):
     logger.debug("Distance = " + str(raw_state[0]) + " ; Speed along road = " + str(raw_state[1]))
@@ -46,11 +48,12 @@ class UnityCarPixels(UnityEnv):
     return self.proc_frame(frame)
 
   def proc_frame(self, frame):
-    img = Image.fromarray(frame)
-    obs = img.resize([84, 84]).convert('L')
+    if np.shape(frame) != (84, 84, 3):
+      img = Image.fromarray(frame)
+      img = img.resize([84, 84]).convert('L')
+      frame = np.asarray(img, dtype=np.uint8)
 
-    obs = np.asarray(obs, dtype=np.uint8)
-    return obs
+    return frame
 
   def _step(self, action):
     action = np.clip(action, -1, 1)
@@ -66,26 +69,40 @@ class UnityCarPixels(UnityEnv):
     direction = state[3:6]
 
     # logger.info(f'd0 = {d0}')
-    done = np.abs(distance) > 1.5 or (self.t > self.t0 and av_speed < 0.1)
+    done = np.abs(distance) > 1.5 or (self.t > self.t0 and av_speed < 0.005)
 
     # r_speed = speed
-    r_speed = 0.1 - .9 * (speed - .2)**2
+    self.rs = rs = 1. * (speed - .4) ** 2
+    # self.rd = rd = .01 * (distance - .5) ** 2
+    self.rd = rd = .01 * (distance - .25) ** 2  # approx. right lane of the road
+    reward = .05 - rd + 0.01 - rs
+    # if done:
+    #   reward -= 10
 
-    reward = .2 - 1 * (distance - .5) ** 2 + r_speed
-    if done:
-      reward -= 10
 
-    reward = np.clip(.1 * reward, -2, 2)
-
+    self.r = np.clip(reward, *self.reward_range)
     done = done or self.t+1 >= self.t_max
 
     self.t += 1
 
-    return self.proc_frame(frame), reward, done, {}
+    return self.proc_frame(frame), self.r, done, {'distance_from_road': distance, 'speed': speed, 'average_speed': av_speed, 'unwrapped_reward': reward}
 
   def report(self):
     logger.info(f'Distance driven: {self.v.sum()}')
 
+
+def draw_rect(a, pos, color):
+  """
+  :param a:
+  :param pos: (x0, y0), (x1, y1) in normalized cartesian coordinates
+  :param color:
+  :return:
+  """
+  pos = np.asarray(pos) * (1, -1) + (0, 1)  # transform to matrix coordinates (flip y axis)
+  pos = pos * (a.shape[1], a.shape[0])
+  (x0, y1), (x1, y0) = np.asarray(pos, dtype=np.int32)
+  a[y0:y1, x0:x1, ...] = color
+  return a
 
 if __name__ == '__main__':
   import argparse
@@ -107,3 +124,4 @@ if __name__ == '__main__':
 
     if (i + 1) % 300 == 0:
       env.reset()
+
