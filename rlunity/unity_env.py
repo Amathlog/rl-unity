@@ -210,11 +210,11 @@ class UnityCar(UnityEnv):
     self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
 
   def process_raw_state(self, raw_state):
-    logger.debug("Distance = " + str(raw_state[0]) + " ; Speed along road = " + str(raw_state[1]))
-    logger.debug("Position = " + str(raw_state[2:5]) + " ; Projection = " + str(raw_state[5:8]))
-    logger.debug("Collision detected : " + ("True" if raw_state[8] == 1.0 else "False"))
-    logger.debug("Road direction : " + str(raw_state[9:12]) + "; Car direction : " + str(raw_state[12:15]))
-    logger.debug("Next angle : " + str(raw_state[15]))
+    # logger.debug("Distance = " + str(raw_state[0]) + " ; Speed along road = " + str(raw_state[1]))
+    # logger.debug("Position = " + str(raw_state[2:5]) + " ; Projection = " + str(raw_state[5:8]))
+    # logger.debug("Collision detected : " + ("True" if raw_state[8] == 1.0 else "False"))
+    # logger.debug("Road direction : " + str(raw_state[9:12]) + "; Car direction : " + str(raw_state[12:15]))
+    # logger.debug("Next angle : " + str(raw_state[15]))
 
     pos = self.wp - raw_state[2:5]
 
