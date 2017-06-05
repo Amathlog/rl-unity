@@ -20,21 +20,19 @@ class UnityEnv(gym.Env):
   and
   https://github.com/openai/gym/tree/master/gym/envs#how-to-create-new-environments-for-gym
   """
-  metadata = {'render.modes': ['human', 'rgb_array']}
+  metadata = {'render.modes': ['human', 'rgb_array'],
+              'video.frames_per_second': 20}
 
-  def __init__(self, w=128, h=128, batchmode=True):
+  def __init__(self, batchmode=False):
     self.proc = None
     self.soc = None
     self.connected = False
 
     self.ad = 2
     self.sd = 16  # TODO: has to remain fixed
-    self.w = w
-    self.h = h
     self.batchmode = batchmode
     self.wp = None
-    pixel_buffer_size = 0 if batchmode else self.w * self.h * 4
-    self.buffer_size = self.sd * 4 + pixel_buffer_size
+
     self.action_space = spaces.Box(-np.ones([self.ad]), np.ones([self.ad]))
     # if batchmode:
     #   sbm = 5
@@ -44,13 +42,22 @@ class UnityEnv(gym.Env):
     self.sbm = 6
     # self.observation_space = spaces.Box(-np.ones([self.sbm]), np.ones([self.sbm]))
     self.log_unity = False
+    self.logfile = None
+    self.restart = False
+    self.configured = False
 
-  def conf(self, loglevel='INFO', log_unity=False, *args, **kwargs):
+  def conf(self, loglevel='INFO', log_unity=False, logfile=None, w=128, h=128, *args, **kwargs):
     logger.setLevel(getattr(logging, loglevel.upper()))
     self.log_unity = log_unity
+    if logfile:
+      self.logfile = open(logfile, 'w')
+
+    assert w >= 100 and h >= 100, 'the simulator does not support smaller resolutions than 100 at the moment'
+    self.w = w
+    self.h = h
+    self.configured = True
 
   def connect(self):
-    self._close()  # reset
     self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     host = '127.0.0.1'
     port = get_free_port(host)
@@ -82,8 +89,13 @@ class UnityEnv(gym.Env):
         sys.stdout.flush()
 
     def poll():
-      self.proc.wait()
-      logger.debug(f'Unity returned with {self.proc.stdout.read()}')
+      while not self.proc.poll():
+        limit = 3
+        if memory_usage(self.proc.pid) > limit * 1024 ** 3:
+          logger.warning(f'Memory usage above {limit} gb. Restarting after this episode.')
+          self.restart = True
+        sleep(5)
+      logger.debug(f'Unity returned with {self.proc.returncode}')
 
     # https://docs.unity3d.com/Manual/CommandLineArguments.html
 
@@ -91,8 +103,22 @@ class UnityEnv(gym.Env):
     config_dir = os.path.expanduser('~/.config/unity3d/DefaultCompany/rl-unity')  # TODO: only works on linux
     if os.path.isdir(config_dir):
       from shutil import rmtree
-      rmtree(config_dir)
+      rmtree(config_dir, ignore_errors=True)
 
+    def limit():
+      import resource
+      l = 6 * 1024 ** 3  # allow 3 gb of address space (less than 3 gb makes the sim crash on startup)
+      try:
+        # resource.setrlimit(resource.RLIMIT_RSS, (l, l))
+        # resource.setrlimit(resource.RLIMIT_DATA, (l, l))
+        # resource.setrlimit(resource.RLIMIT_AS, (l, resource.RLIM_INFINITY))
+        pass
+      except Exception as e:
+        print(e)
+        raise
+
+    stderr = self.logfile if self.logfile else (subprocess.PIPE if self.log_unity else subprocess.DEVNULL)
+    import shutil
     self.proc = subprocess.Popen([bin,
                                   *(['-logfile'] if self.log_unity else []),
                                   *(['-batchmode', '-nographics'] if self.batchmode else []),
@@ -100,39 +126,52 @@ class UnityEnv(gym.Env):
                                   '-screen-height {}'.format(self.h),
                                   ],
                                  env=env,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT,
-                                 universal_newlines=True)
+                                 stdout=stderr,
+                                 stderr=stderr,
+                                 universal_newlines=True,
+                                 preexec_fn=limit)
 
     threading.Thread(target=poll, daemon=True).start()
-    threading.Thread(target=stdw, daemon=True).start()
 
-    for i in range(200):
+    # threading.Thread(target=stdw, daemon=True).start()
+
+    # wait until connection with simulator process
+    timeout = 20
+    for i in range(timeout * 10):
       if self.proc.poll():
         logger.debug('simulator died')
         break
 
       try:
         self.soc.connect((host, port))
-        self.soc.settimeout(20.)
+        self.soc.settimeout(20 * 60)  # 20 minutes
         self.connected = True
         break
-      except ConnectionRefusedError:
-        pass
+      except ConnectionRefusedError as e:
+        if i == timeout * 10 - 1:
+          print(e)
 
       sleep(.1)
 
     if not self.connected:
-      raise Exception()
+      raise ConnectionRefusedError('Connection with simulator could not be established.')
 
   def _reset(self):
+    if not self.configured:
+      self.conf()
+
+    if self.restart:
+      self.disconnect()
+      self.restart = False
+
     if not self.connected:
       self.connect()
 
     else:
       self.send(np.zeros(2), reset=True)
 
-    # TODO: hacked fix for simulator reset bug
+    # skip first observation from simulator because it's faulty
+    # TODO: fix first observation in simulator
     self.receive()
     self.send(np.zeros(2), reset=False)
 
@@ -141,35 +180,38 @@ class UnityEnv(gym.Env):
     return state, frame
 
   def receive(self):
+    pixel_buffer_size = 0 if self.batchmode else self.w * self.h * 4
+    buffer_size = self.sd * 4 + pixel_buffer_size
+    # receive data from simulator process
     data_in = b""
-    while len(data_in) < self.buffer_size:
-      chunk = self.soc.recv(min(1024, self.buffer_size - len(data_in)))
+    while len(data_in) < buffer_size:
+      chunk = self.soc.recv(min(1024, buffer_size - len(data_in)))
       data_in += chunk
-
-    # assert len(data_in) == self.buffer_size
 
     # Checking data points are not None, if yes parse them.
     if self.wp is None:
       with open(os.path.join(self.sim_path, 'sim_Data', 'waypoints_SimpleTerrain.txt')) as f:
-        wp = json.load(f)
-        self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
-        logger.debug(str(self.wp))
+        try:
+          wp = json.load(f)
+          self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
+          logger.debug(str(self.wp))
+        except json.JSONDecodeError:
+          self.wp = None
 
-    # TODO: @Adrien self.sd has to remain constant after __init__
     # Read the number of float sent by the C# side. It's the first number
     # sd = int(np.frombuffer(data_in, np.float32, 1, 0))
-    # logger.debug(f'State dimension expected: {self.sd}, received: {sd}')
-    # assert sd == self.sd
+    # assert sd == self.sd, f'State dimension expected: {self.sd}, received: {sd}'
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
     if self.batchmode:
       frame = None
     else:
+      # convert frame pixel data into a numpy array of shape [width, height, 3]
       frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
       # logger.debug(str(len(frame)))
       frame = np.reshape(frame, [self.w, self.h, 4])
-      frame = frame[:, :, :3]
+      frame = frame[::-1, :, :3]
 
     self.last_frame = frame
     self.last_state = state
@@ -184,18 +226,29 @@ class UnityEnv(gym.Env):
     data_out = a.tobytes()
     self.soc.sendall(data_out)
 
-  def _close(self):
+  def disconnect(self):
     if self.proc:
       self.proc.kill()
     if self.soc:
       self.soc.close()
+    self.connected = False
 
-  def render(self, mode='human', *args, **kwargs):
+  def _close(self):
+    logger.debug('close')
+    if self.proc:
+      self.proc.kill()
+    if self.soc:
+      self.soc.close()
+    if self.logfile:
+      self.logfile.close()
+
+  def _render(self, mode='human', close=False):
     if mode == 'rgb_array':
       return self.last_frame  # return RGB frame suitable for video
     elif mode is 'human':
       pass  # we do that anyway
     else:
+<<<<<<< HEAD
       super().render(mode=mode)  # just raise an exception
 
 
@@ -275,6 +328,9 @@ class UnityCar(UnityEnv):
 
   def report(self):
     logger.info(f'Distance driven: {self.v.sum()}')
+=======
+      super()._render(mode, close)  # just raise an exception
+>>>>>>> 6abbaa4a95f07f20ffd1b3fdd85354b531dbf08f
 
 
 def get_free_port(host):
@@ -285,23 +341,14 @@ def get_free_port(host):
   return port
 
 
-if __name__ == '__main__':
-  import argparse
+def memory_usage(pid):
+  import psutil
+  proc = psutil.Process(pid)
+  mem = proc.memory_info().rss  # resident memory
+  for child in proc.children(recursive=True):
+    try:
+      mem += child.memory_info().rss
+    except psutil.NoSuchProcess:
+      pass
 
-  parser = argparse.ArgumentParser(description='Unity Gym Environment')
-  parser.add_argument('--batchmode', action='store_true', help='Run the simulator in batch mode with no graphics')
-  args = parser.parse_args()
-  logger.debug('Batchmode ' + str(args.batchmode))
-  bm = args.batchmode
-
-  import rlunity
-
-  env = gym.make('UnityCar-v0')  # requires import rlunity
-  env.unwrapped.conf(loglevel='debug', log_unity=True)
-  env.reset()
-  for i in range(10000):
-    print(i)
-    env.step([1.0, 1.0])
-
-    if (i + 1) % 300 == 0:
-      env.reset()
+  return mem
