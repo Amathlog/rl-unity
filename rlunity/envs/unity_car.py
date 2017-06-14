@@ -15,32 +15,57 @@ class UnityCar(UnityEnv):
 
     self.t0 = 7*60
 
-    sbm = self.sbm + 33
+    #sbm = self.sbm + 33
+    self.sbm = 7
+    sbm = 7
     self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
 
   def process_raw_state(self, raw_state):
-    # logger.debug("Distance = " + str(raw_state[0]) + " ; Speed along road = " + str(raw_state[1]))
-    # logger.debug("Position = " + str(raw_state[2:5]) + " ; Projection = " + str(raw_state[5:8]))
-    # logger.debug("Collision detected : " + ("True" if raw_state[8] == 1.0 else "False"))
-    # logger.debug("Road direction : " + str(raw_state[9:12]) + "; Car direction : " + str(raw_state[12:15]))
-    # logger.debug("Next angle :" + str(raw_state[15]))
+    # logger.debug("Distance = " + str(raw_state[0]) + " ; Speed Projected road = " + str(raw_state[1:4]))
+    # logger.debug("Position = " + str(raw_state[4:7]) + " ; Projection = " + str(raw_state[7:10]))
+    # logger.debug("Collision detected : " + ("True" if raw_state[10] == 1.0 else "False"))
+    # logger.debug("Road direction : " + str(raw_state[11:14]) + "; Car direction : " + str(raw_state[14:17]))
+    # logger.debug("Next angle :" + str(raw_state[17]))
 
-    # radial basis function features
-    pos = self.wp - raw_state[2:5]
-    pos_fp = np.exp(- np.sum(np.square(pos), axis=1) / 100)
+    # The state is :
+    # - Distance from the road (positive and nagative values = right-left position)
+    # - Angle with the road 
+    # - speed along the road (X)
+    # - speed perpendicular to the road(Y)
+    # - speed up to the road (Z)
+    # - Average speed along road
+    # - next angle
 
-    direction = raw_state[12:15] - raw_state[9:12]
+    distance = raw_state[0]
+    car_direction = raw_state[14:17]
+    road_direction = raw_state[11:14]
+    angle = np.math.acos(np.dot(car_direction, road_direction))
+    speed_x, speed_y, speed_z = raw_state[1:4]
+    next_angle = raw_state[17]
+
+    #logger.debug("Angle :" + str(angle))
+
     self.v[self.t] = raw_state[1]
     av_speed = self.v[max(0, self.t - self.t0):self.t+1].mean()
 
-    return np.concatenate(((
-        raw_state[0] / 100,  # distance from road center (in meters) TODO: verify
-        raw_state[1],  # speed projected onto road (in meters / s) TODO: verify
-        av_speed,  # running average of the speed
-      ),
-      direction,  # direction relative to road
-      pos_fp,  # radial basis functions of location w.r.t. the waypoints
-    ))
+    return np.array([distance/40, angle, speed_x/11.0, speed_y/11.0, speed_z/11.0, av_speed/11.0, next_angle])
+
+    # radial basis function features
+    # pos = self.wp - raw_state[4:7]
+    # pos_fp = np.exp(- np.sum(np.square(pos), axis=1) / 100)
+
+    # direction = raw_state[14:17] - raw_state[11:14]
+    
+
+    # return np.concatenate(((
+    #     raw_state[0] / 100,  # distance from road center (in meters) TODO: verify
+    #     raw_state[1] / 12,  # speed projected onto road (in meters / s) TODO: verify
+    #     raw_state[2] / 12, # speed projected perpendicular to the road
+    #     av_speed,  # running average of the speed
+    #   ),
+    #   direction,  # direction relative to road
+    #   pos_fp,  # radial basis functions of location w.r.t. the waypoints
+    # ))
 
   def _reset(self):
     self.v = np.zeros(self.t_max)
@@ -51,28 +76,41 @@ class UnityCar(UnityEnv):
 
   def _step(self, action):
     action = np.clip(action, -1, 1)
+    #logger.debug("Action taken=" + str(action))
     self.send(action)
     state, frame = self.receive()
+    #logger.debug(str(frame))
 
     state = self.process_raw_state(state)
+    # logger.debug("Action taken: " + str(action))
+    # logger.debug("State: " + str(state))
 
     distance = state[0]
-    speed = state[1]
-    av_speed = state[2]
-
-    direction = state[3:6]
+    angle = state[1]
+    speed_x = state[2]
+    speed_y = state[3]
+    av_speed = state[5]
 
     # logger.info(f'd0 = {d0}')
-    done = np.abs(distance) > 1.5 or (self.t > self.t0 and av_speed < 0.1)
+    done = np.abs(distance) > 1 or (self.t > self.t0 and av_speed < 0.1)
 
-    # r_speed = speed
-    r_speed = 0.1 - .9 * (speed - .2)**2
+    #r_speed = speed
+    # r_speed = 0.1 - .9 * (speed - .2)**2
 
-    reward = .2 - 1 * (distance - .5) ** 2 + r_speed
+    # reward = .2 - 1 * (distance - .5) ** 2 + r_speed
+    # if done:
+    #   reward -= 30
+
+    # reward = 1 * reward
     if done:
-      reward -= 30
+      reward = -1
+    else:
+      reward = np.clip(speed_x - abs(speed_y) - abs(distance)*2, -1, 1)
 
-    reward = 1 * reward
+    # logger.debug("State: " + str(state))
+    # logger.debug("Reward: " + str(reward))
+    # logger.debug("Speedy = " + str(speed_y))
+    # logger.debug("")
 
     done = done or self.t+1 >= self.t_max
 

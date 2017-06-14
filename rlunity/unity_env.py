@@ -29,7 +29,7 @@ class UnityEnv(gym.Env):
     self.connected = False
 
     self.ad = 2
-    self.sd = 16  # TODO: has to remain fixed
+    self.sd = 18  # TODO: has to remain fixed
     self.batchmode = batchmode
     self.wp = None
 
@@ -46,7 +46,7 @@ class UnityEnv(gym.Env):
     self.restart = False
     self.configured = False
 
-  def conf(self, loglevel='INFO', log_unity=False, logfile=None, w=128, h=128, *args, **kwargs):
+  def conf(self, loglevel='INFO', log_unity=False, logfile=None, w=128, h=128,frame=True,frame_w=128,frame_h=128, *args, **kwargs):
     logger.setLevel(getattr(logging, loglevel.upper()))
     self.log_unity = log_unity
     if logfile:
@@ -55,6 +55,9 @@ class UnityEnv(gym.Env):
     assert w >= 100 and h >= 100, 'the simulator does not support smaller resolutions than 100 at the moment'
     self.w = w
     self.h = h
+    self.frame_h=frame_h
+    self.frame_w = frame_w
+    self.send_frame = frame
     self.configured = True
 
   def connect(self):
@@ -78,6 +81,9 @@ class UnityEnv(gym.Env):
       RL_UNITY_PORT=str(port),
       RL_UNITY_WIDTH=str(self.w),
       RL_UNITY_HEIGHT=str(self.h),
+      RL_UNITY_FRAME=str(self.send_frame),
+      RL_UNITY_FRAME_WIDTH=str(self.frame_w),
+      RL_UNITY_FRAME_HEIGHT=str(self.frame_h)
       # MESA_GL_VERSION_OVERRIDE=str(3.3),
     )  # insert env variables here
 
@@ -128,8 +134,7 @@ class UnityEnv(gym.Env):
                                  env=env,
                                  stdout=stderr,
                                  stderr=stderr,
-                                 universal_newlines=True,
-                                 preexec_fn=limit)
+                                 universal_newlines=True)
 
     threading.Thread(target=poll, daemon=True).start()
 
@@ -166,7 +171,6 @@ class UnityEnv(gym.Env):
 
     if not self.connected:
       self.connect()
-
     else:
       self.send(np.zeros(2), reset=True)
 
@@ -180,7 +184,7 @@ class UnityEnv(gym.Env):
     return state, frame
 
   def receive(self):
-    pixel_buffer_size = 0 if self.batchmode else self.w * self.h * 4
+    pixel_buffer_size = 0 if self.batchmode or not self.send_frame else self.frame_w * self.frame_h * 4
     buffer_size = self.sd * 4 + pixel_buffer_size
     # receive data from simulator process
     data_in = b""
@@ -204,13 +208,13 @@ class UnityEnv(gym.Env):
 
     state = np.frombuffer(data_in, np.float32, self.sd, 0)
 
-    if self.batchmode:
+    if self.batchmode or not self.send_frame:
       frame = None
     else:
       # convert frame pixel data into a numpy array of shape [width, height, 3]
       frame = np.frombuffer(data_in, np.uint8, -1, self.sd * 4)
       # logger.debug(str(len(frame)))
-      frame = np.reshape(frame, [self.w, self.h, 4])
+      frame = np.reshape(frame, [self.frame_w, self.frame_h, 4])
       frame = frame[::-1, :, :3]
 
     self.last_frame = frame

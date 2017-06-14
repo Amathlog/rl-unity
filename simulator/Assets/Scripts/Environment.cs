@@ -21,14 +21,19 @@ public class Environment : MonoBehaviour {
 	private Vector3 currProj;
 	private Vector3 unitVectorAlongRoad;
 	private Vector3 unitVectorAlongRoadOneStepAhead;
+    private Vector3 unitVectorPerpendicularRoad;
+    private Vector3 unitVectorUpRoad;
 	private float nextAngle;
 	private float distanceFromRoad = 0.0f;
-	private float speedAlongRoad;
+	private Vector3 speedProjectedRoad;
 	private CarController carController;
 	private bool collisionDetected = false;
 	private Camera m_cam;
     private Color32[] rendered_screen = null;
     private bool isUpdating = false;
+    public bool frame_update = true;
+    public GameObject renderPlane;
+    public Vector2 frameSize;
 
 	internal class PairDistanceVector {
 		public int number;
@@ -106,7 +111,7 @@ public class Environment : MonoBehaviour {
 		markersPos = new List<Vector3> ();
 		lastProj = GetPosition();
 		currProj = lastProj;
-		speedAlongRoad = 0.0f;
+		speedProjectedRoad = Vector3.zero;
 		foreach (Transform child in markers.transform) {
 			markersPos.Add(child.position);
 		}
@@ -162,18 +167,33 @@ public class Environment : MonoBehaviour {
 
 		lastProj = currProj;
 		currProj = Vector3.Dot(u, v) * u + a;
-
-		Vector3 diffProj = currProj - lastProj;
-		speedAlongRoad = Mathf.Sign(Vector3.Dot(u, diffProj)) * diffProj.magnitude;
+        Vector3 diffProj = currProj - lastProj;
         // Square distance, Pythagorean theorem in the triangle A-C-proj
         // Negative if left to the road; Positive if right to the road
 
         distanceFromRoad = Mathf.Sign(Vector3.Cross(u, v.normalized).y) * (GetPosition() - currProj).sqrMagnitude;
-	
-		// Compute the angle between AB and BC to get the next angle with the road
-		// Since it's control points, it's not as precise as it should be (it should be spine interpolated)
-		// But we get an approximation of the road shape
-		float angle = Mathf.Acos(Vector3.Dot(unitVectorAlongRoad, unitVectorAlongRoadOneStepAhead));
+
+        unitVectorUpRoad = new Vector3(0, 1, 0);
+        if(distanceFromRoad >= 0) {
+            unitVectorPerpendicularRoad = Vector3.Cross(unitVectorUpRoad, unitVectorAlongRoad);
+            unitVectorUpRoad = Vector3.Cross(unitVectorAlongRoad, unitVectorPerpendicularRoad);
+        } else {
+            unitVectorPerpendicularRoad = Vector3.Cross(unitVectorAlongRoad, unitVectorUpRoad);
+            unitVectorUpRoad = Vector3.Cross(unitVectorPerpendicularRoad, unitVectorAlongRoad);
+        }
+        //Debug.DrawLine(GetPosition(), GetPosition() + unitVectorAlongRoad, Color.red);
+        //Debug.DrawLine(GetPosition(), GetPosition() + unitVectorPerpendicularRoad, Color.blue);
+        //Debug.DrawLine(GetPosition(), GetPosition() + unitVectorUpRoad, Color.green);
+
+
+        Vector3 velocity = car.transform.GetComponent<Rigidbody>().velocity;
+        // Project speed in the road coordinates
+        speedProjectedRoad = new Vector3(Vector3.Dot(unitVectorAlongRoad, velocity), Vector3.Dot(unitVectorPerpendicularRoad, velocity), Vector3.Dot(unitVectorUpRoad, velocity));
+
+        // Compute the angle between AB and BC to get the next angle with the road
+        // Since it's control points, it's not as precise as it should be (it should be spine interpolated)
+        // But we get an approximation of the road shape
+        float angle = Mathf.Acos(Vector3.Dot(unitVectorAlongRoad, unitVectorAlongRoadOneStepAhead));
 		nextAngle = Mathf.Sign(Vector3.Cross(unitVectorAlongRoad, unitVectorAlongRoadOneStepAhead).y) * angle;
 	}
 
@@ -190,6 +210,9 @@ public class Environment : MonoBehaviour {
         // Read screen contents into the texture
         tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
         tex.Apply();
+        TextureScale.Bilinear(tex, (int)frameSize.x, (int)frameSize.y);
+
+        //renderPlane.GetComponent<Renderer>().material.mainTexture = tex;
 
         rendered_screen = tex.GetPixels32();
 
@@ -217,7 +240,7 @@ public class Environment : MonoBehaviour {
     //}
 
     void FixedUpdate() {
-        if (!isUpdating) {
+        if (!isUpdating && frame_update) {
             isUpdating = true;
             StartCoroutine(UpdateScreenBuffer());
         }
@@ -249,7 +272,7 @@ public class Environment : MonoBehaviour {
 		ComputeDistance();
 		List<float> res = new List<float>();
 		res.Add(distanceFromRoad);
-		res.Add(speedAlongRoad);
+		res.AddRange(GetValues(speedProjectedRoad));
 		res.AddRange(GetValues(GetPosition()));
 		res.AddRange(GetValues(currProj));
 		res.Add(Convert.ToSingle(collisionDetected));

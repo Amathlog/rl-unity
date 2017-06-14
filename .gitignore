@@ -37,3 +37,12 @@ sysinfo.txt
 *.apk
 *.unitypackage
 
+# Python compiled files
+*/__pycache__/
+*.pyc
+
+# Pip folder
+rl_unity.egg-info/
+
+# Weights files
+*.h5f

@@ -18,8 +18,11 @@ public class sockets : MonoBehaviour
 
     int width;
     int height;
+    int frame_width;
+    int frame_height;
     int t = 0;
     int skipfirst = 10;
+    bool send_frame;
 
 	int sd;
     int ad = 3;
@@ -33,6 +36,9 @@ public class sockets : MonoBehaviour
         port = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_PORT"));
         width = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_WIDTH"));
         height = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_HEIGHT"));
+        send_frame = Convert.ToBoolean(System.Environment.GetEnvironmentVariable("RL_UNITY_FRAME"));
+        frame_width = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_FRAME_WIDTH"));
+        frame_height = Convert.ToInt32(System.Environment.GetEnvironmentVariable("RL_UNITY_FRAME_HEIGHT"));
 
         // make framerate constant
         // https://docs.unity3d.com/ScriptReference/Time-captureFramerate.html
@@ -61,6 +67,8 @@ public class sockets : MonoBehaviour
         AudioListener.volume = 0;
 
         env = GameObject.Find("Env").GetComponent<Environment>();
+        env.frame_update = send_frame;
+        env.frameSize = new Vector2(frame_width, frame_height);
 
         IPAddress localAddr = IPAddress.Parse("127.0.0.1");
 
@@ -92,10 +100,12 @@ public class sockets : MonoBehaviour
         try{
 
             NetworkStream networkStream = clientSocket.GetStream();
-
-            byte[] frame = env.GetFrame();
-            if(frame==null){
-                frame = new byte[0];
+            byte[] frame = new byte[0];
+            if (send_frame) {
+                frame = env.GetFrame();
+                if (frame == null) {
+                    frame = new byte[0];
+                }
             }
 
             // Send distance to the road and vector3 speedAlongTheRoad
@@ -146,7 +156,7 @@ public class sockets : MonoBehaviour
     }
 
     // Update is called once per frame
-    void FixedUpdate()
+    void Update()
     {
         //print("upd");
         if(clientSocket != null){
