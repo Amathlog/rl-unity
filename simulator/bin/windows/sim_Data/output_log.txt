@@ -5,99 +5,45 @@ Direct3D:
     Renderer: NVIDIA GeForce GTX 765M (ID=0x11e2)
     Vendor:   NVIDIA
     VRAM:     2019 MB
-    Driver:   21.21.13.7654
+    Driver:   21.21.13.7651
 Begin MonoManager ReloadAssembly
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.dll (this message is harmless)
-Loading e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.dll into Unity Child Domain
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Assembly-CSharp-firstpass.dll (this message is harmless)
-Loading e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Assembly-CSharp-firstpass.dll into Unity Child Domain
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Assembly-CSharp.dll (this message is harmless)
-Loading e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Assembly-CSharp.dll into Unity Child Domain
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.UI.dll (this message is harmless)
-Loading e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.UI.dll into Unity Child Domain
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.Networking.dll (this message is harmless)
-Loading e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.Networking.dll into Unity Child Domain
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.PlaymodeTestsRunner.dll (this message is harmless)
-Loading e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.PlaymodeTestsRunner.dll into Unity Child Domain
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\EasyRoads3D.dll (this message is harmless)
-Loading e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\EasyRoads3D.dll into Unity Child Domain
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Newtonsoft.Json.dll (this message is harmless)
-Loading e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Newtonsoft.Json.dll into Unity Child Domain
-- Completed reload, in  0.038 seconds
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\System.Core.dll (this message is harmless)
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\System.dll (this message is harmless)
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.dll (this message is harmless)
+Loading E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.dll into Unity Child Domain
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Assembly-CSharp-firstpass.dll (this message is harmless)
+Loading E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Assembly-CSharp-firstpass.dll into Unity Child Domain
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Assembly-CSharp.dll (this message is harmless)
+Loading E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Assembly-CSharp.dll into Unity Child Domain
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.UI.dll (this message is harmless)
+Loading E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.UI.dll into Unity Child Domain
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.Networking.dll (this message is harmless)
+Loading E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.Networking.dll into Unity Child Domain
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.PlaymodeTestsRunner.dll (this message is harmless)
+Loading E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\UnityEngine.PlaymodeTestsRunner.dll into Unity Child Domain
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\EasyRoads3D.dll (this message is harmless)
+Loading E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\EasyRoads3D.dll into Unity Child Domain
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Newtonsoft.Json.dll (this message is harmless)
+Loading E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\Newtonsoft.Json.dll into Unity Child Domain
+- Completed reload, in  0.024 seconds
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\System.Core.dll (this message is harmless)
+Platform assembly: E:\Adrien\Documents\Unity\rl-unity\simulator\bin\windows\sim_Data\Managed\System.dll (this message is harmless)
 <RI> Initializing input.
 <RI> Input initialized.
 desktop: 1920x1080 60Hz; virtual: 1920x1080 at 0,0
 <RI> Initialized touch support.
-UnloadTime: 0.891227 ms
-Port:53979
+UnloadTime: 0.919029 ms
+Port:8887
  
 (Filename: C:/buildslave/unity/build/artifacts/generated/common/runtime/DebugBindings.gen.cpp Line: 51)
 
-Width:1024
+Width:0
  
 (Filename: C:/buildslave/unity/build/artifacts/generated/common/runtime/DebugBindings.gen.cpp Line: 51)
 
-Height:768
+Height:0
  
 (Filename: C:/buildslave/unity/build/artifacts/generated/common/runtime/DebugBindings.gen.cpp Line: 51)
 
 Server Started
  
 (Filename: C:/buildslave/unity/build/artifacts/generated/common/runtime/DebugBindings.gen.cpp Line: 51)
-
-Accepting connection
- 
-(Filename: C:/buildslave/unity/build/artifacts/generated/common/runtime/DebugBindings.gen.cpp Line: 51)
-
-Unloading 4 Unused Serialized files (Serialized files now loaded: 0)
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\System.Xml.dll (this message is harmless)
-Platform assembly: e:\adrien\documents\unity\rl-unity\simulator\bin\windows\sim_Data\Managed\System.Data.dll (this message is harmless)
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
-
-Setting up 2 worker threads for Enlighten.
-  Thread -> id: 41e0 -> priority: 1 
-  Thread -> id: 2a54 -> priority: 1 
-
-Unloading 8 unused Assets to reduce memory usage. Loaded Objects now: 1540.
-Total: 0.780037 ms (FindLiveObjects: 0.091945 ms CreateObjectMapping: 0.032501 ms MarkObjects: 0.390446 ms  DeleteObjects: 0.256591 ms)
-
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
-
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
-
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
-
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
-
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
-
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
-
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
-
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
-
-Default clip could not be found in attached animations list.
- 
-(Filename:  Line: 403)
 
