@@ -6,6 +6,7 @@ from rl.random import OrnsteinUhlenbeckProcess
 
 from keras.layers import Dense, Activation, Input, Flatten, concatenate
 from keras.models import Model
+from keras import initializers
 from keras.layers.merge import Concatenate
 from keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint
@@ -41,9 +42,9 @@ flattened_observation1 = Flatten()(observation_input1)
 
 # Actor
 a = flattened_observation
-a = Dense(HIDDEN_SIZE_1)(a)
+a = Dense(HIDDEN_SIZE_1, kernel_initializer='he_normal')(a)
 a = Activation('relu')(a)
-a = Dense(HIDDEN_SIZE_2)(a)
+a = Dense(HIDDEN_SIZE_2, kernel_initializer='he_normal')(a)
 a = Activation('relu')(a)
 accl = Dense(1)(a)
 accl = Activation('sigmoid')(accl)
@@ -55,9 +56,9 @@ actor = Model(input=observation_input, output=a)
 
 # Critic
 c = concatenate([action_input, flattened_observation1])
-c = Dense(HIDDEN_SIZE_1)(c)
+c = Dense(HIDDEN_SIZE_1, kernel_initializer='he_normal')(c)
 c = Activation('relu')(c)
-c = Dense(HIDDEN_SIZE_2)(c)
+c = Dense(HIDDEN_SIZE_2, kernel_initializer='he_normal')(c)
 c = Activation('relu')(c)
 c = Dense(1)(c)
 c = Activation('linear')(c)
@@ -68,7 +69,7 @@ memory = SequentialMemory(limit=5000, window_length=1)
 random_process = MultipleOUprocesses(ACTION_SIZE, OU_THETA, OU_MU, OU_SIGMA)
 agent = DDPGAgent(nb_actions=ACTION_SIZE, actor=actor, critic=critic, critic_action_input=action_input,
                   memory=memory, nb_steps_warmup_critic=100, nb_steps_warmup_actor=100,
-                   gamma=.99, target_model_update=1e-3)
+                   gamma=.99, target_model_update=1e-3, batch_size=32)
 agent.compile(Adam(lr=.001, clipnorm=1.), metrics=['mae'])
 
 filepath = "ddpg_weights"
@@ -84,7 +85,10 @@ if os.path.exists(actor_file) and not args.reset:
 if(args.test):
     print("Only testing...")
     while(True):
+        env.unwrapped.change_level(1)
+        env.unwrapped.testing = True
         agent.test(env, nb_episodes=1, visualize=False)
+        env.unwrapped.save_metrics()
 else:
     while(True):
         print("Start training...")
@@ -92,7 +96,12 @@ else:
         print("End of training, saving weights...")
         agent.save_weights(filepath, overwrite = True)
         print("Weights trained, testing...")
-        agent.test(env, nb_episodes=5, nb_max_episode_steps=5000, visualize=False)
+        env.unwrapped.change_level(1)
+        env.unwrapped.testing = True
+        agent.test(env, nb_episodes=1, nb_max_episode_steps=50000, visualize=False)
+        env.unwrapped.save_metrics()
         print("Train over...")
+        env.unwrapped.change_level(0)
+        env.unwrapped.testing = False
 
 

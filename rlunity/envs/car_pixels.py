@@ -18,7 +18,7 @@ class UnityCarPixels(UnityEnv):
     self.t0 = 20 * 7
 
     sbm = self.sbm
-    self.observation_space = spaces.Box(0, 255, shape=[84, 84, 3, 3])
+    self.observation_space = spaces.Box(0.0, 1.0, shape=[84, 84, 3])
     self.reward_range = (-.1, .1)
     self.r = 0
 
@@ -68,55 +68,48 @@ class UnityCarPixels(UnityEnv):
     return frame
 
   def _step(self, action):
-    # For each step, we gather 3 images therefore there is 3 repeat action
-    states = []
-    frames = []
-    rewards = []
-    for i in range(3):
-      action = np.clip(action, -1, 1)
-      self.send(action)
-      state, frame = self.receive()
+    action = np.clip(action, -1, 1)
+    self.send(action)
+    state, frame = self.receive()
+    logger.debug(str(frame.shape))
 
-      state = self.process_raw_state(state)
+    state = self.process_raw_state(state)
 
-      distance = state[0]
-      angle = state[1]
-      speed_x = state[2]
-      speed_y = state[3]
-      av_speed = state[5]
+    distance = state[0]
+    angle = state[1]
+    speed_x = state[2]
+    speed_y = state[3]
+    av_speed = state[5]
 
-      # logger.info(f'd0 = {d0}')
-      done = np.abs(distance) > 1 or (self.t > self.t0 and av_speed < 0.1)
+    # logger.info(f'd0 = {d0}')
+    done = np.abs(distance) > 1 or (self.t > self.t0 and av_speed < 0.1)
 
-      #r_speed = speed
-      # r_speed = 0.1 - .9 * (speed - .2)**2
+    #r_speed = speed
+    # r_speed = 0.1 - .9 * (speed - .2)**2
 
-      # reward = .2 - 1 * (distance - .5) ** 2 + r_speed
-      # if done:
-      #   reward -= 30
+    # reward = .2 - 1 * (distance - .5) ** 2 + r_speed
+    # if done:
+    #   reward -= 30
 
-      # reward = 1 * reward
-      if done:
-        reward = -1
-      else:
-        reward = np.clip(speed_x - abs(speed_y) - abs(distance)*2, -1, 1)
+    # reward = 1 * reward
+    if done:
+      reward = -1
+    else:
+      reward = np.clip(speed_x*1.3 - abs(speed_y) - abs(distance)*2, -1, 1)
 
-      # logger.debug("State: " + str(state))
-      # logger.debug("Reward: " + str(reward))
-      # logger.debug("Speedy = " + str(speed_y))
-      # logger.debug("")
+    # logger.debug("State: " + str(state))
+    # logger.debug("Reward: " + str(reward))
+    # logger.debug("Speedy = " + str(speed_y))
+    # logger.debug("")
 
-      done = done or self.t+1 >= self.t_max
+    done = done or self.t+1 >= self.t_max
 
-      self.t += 1
-      states.append(state)
-      frames.append(frame)
-      rewards.append(reward)
+    self.t += 1
 
-    return self.proc_frame(frame), self.r, done, {'distance_from_road': distance, 'speed': speed, 'average_speed': av_speed, 'unwrapped_reward': reward}
+    return frame, reward, done, {'distance_from_road': distance, 'speed': speed_x, 'average_speed': av_speed, 'unwrapped_reward': reward}
 
   def report(self):
-    logger.info(f'Distance driven: {self.v.sum()}')
+    logger.info('Distance driven: ' + str(self.v.sum()))
 
 
 def draw_rect(a, pos, color):
@@ -144,7 +137,7 @@ if __name__ == '__main__':
   import rlunity
 
   env = gym.make('UnityCarPixels-v0')  # requires import rlunity
-  env.unwrapped.conf(loglevel='debug', log_unity=True)
+  env.unwrapped.conf(loglevel='debug', log_unity=True, frame_w = 84, frame_h = 84)
   env.reset()
   for i in range(10000):
     print(i)

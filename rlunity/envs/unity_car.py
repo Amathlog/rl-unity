@@ -11,7 +11,7 @@ class UnityCar(UnityEnv):
   """
   def __init__(self):
     super().__init__(batchmode=False)
-    self.t_max = 100000  # about 1h of driving at 30fps
+    self.t_max = 10000  # about 1h of driving at 30fps
 
     self.t0 = 7*60
 
@@ -19,6 +19,9 @@ class UnityCar(UnityEnv):
     self.sbm = 7
     sbm = 7
     self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
+    self.reward = self.reward_center_road
+    self.last_position = None
+    self.driven_distance = 0
 
   def process_raw_state(self, raw_state):
     # logger.debug("Distance = " + str(raw_state[0]) + " ; Speed Projected road = " + str(raw_state[1:4]))
@@ -42,6 +45,14 @@ class UnityCar(UnityEnv):
     angle = np.math.acos(np.dot(car_direction, road_direction))
     speed_x, speed_y, speed_z = raw_state[1:4]
     next_angle = raw_state[17]
+
+    position = raw_state[4:7]
+
+    if self.last_position is None:
+      self.last_position = position
+
+    self.driven_distance = np.linalg.norm(self.last_position - position)
+    self.last_position = position
 
     #logger.debug("Angle :" + str(angle))
 
@@ -70,6 +81,7 @@ class UnityCar(UnityEnv):
   def _reset(self):
     self.v = np.zeros(self.t_max)
     self.t = 0
+    self.last_position = None
     state, frame = super()._reset()
     state = self.process_raw_state(state)
     return state
@@ -105,7 +117,7 @@ class UnityCar(UnityEnv):
     if done:
       reward = -1
     else:
-      reward = np.clip(speed_x - abs(speed_y) - abs(distance)*2, -1, 1)
+      reward = self.reward(state)
 
     # logger.debug("State: " + str(state))
     # logger.debug("Reward: " + str(reward))
@@ -116,10 +128,32 @@ class UnityCar(UnityEnv):
 
     self.t += 1
 
+    self.rewards += reward
+    self.distances.append(distance)
+    self.distance_driven += self.driven_distance
+
     return state, reward, done, {}
 
+  def reward_center_road(self, state):
+    distance = state[0]
+    speed_x = state[2]
+    speed_y = state[3]
+    return np.clip((speed_x - 0.5)*1.3 - abs(speed_y) - abs(distance)*2, -1, 1)
+
+  def reward_right_road(self, state):
+    distance = state[0]
+    speed_x = state[2]
+    speed_y = state[3]
+    return np.clip((speed_x - 0.4)*1.3 - abs(speed_y) - abs(0.3 - distance)*2, -1, 1)
+
+  def reward_left_road(self, state):
+    distance = state[0]
+    speed_x = state[2]
+    speed_y = state[3]
+    return np.clip(speed_x - abs(speed_y) - abs(distance + 0.3)*2, -1, 1)
+
   def report(self):
-    logger.info(f'Distance driven: {self.v.sum()}')
+    logger.info('Distance driven: ' + str(self.v.sum()))
 
 
 def test_unity_car():

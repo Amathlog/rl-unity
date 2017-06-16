@@ -34,6 +34,7 @@ public class Environment : MonoBehaviour {
     public bool frame_update = true;
     public GameObject renderPlane;
     public Vector2 frameSize;
+    public bool randomPosition = true;
 
 	internal class PairDistanceVector {
 		public int number;
@@ -70,16 +71,23 @@ public class Environment : MonoBehaviour {
 	}
 
 	public void MakeAction(float[] actions) {
-		carController.Move(actions[0], actions[1], actions[1], 0f);
-		if (actions[2] != 0.0f) {
-			car.GetComponent<Rigidbody>().velocity = Vector3.zero;
-			car.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
-			SetCarPosition();
+		carController.Move(actions[0], actions[1], actions[1], 0f);      
+		if (actions[2] != 0.0f) { // If reset...
+            // Checking if the levelnumber is the same than the loaded scene
+            if ((int)actions[3] == SceneManager.GetActiveScene().buildIndex){
+                car.GetComponent<Rigidbody>().velocity = Vector3.zero;
+                car.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+                SetCarPosition();
+            } else {
+                SceneManager.LoadScene((int)actions[3]);
+            }
 		}
 	}
 
 	private void SetCarPosition(){
-		int id = UnityEngine.Random.Range(0, markersPos.Count);
+        int id = 0;
+        if(randomPosition)
+		    id = UnityEngine.Random.Range(0, markersPos.Count);
 		car.transform.forward = GetRoadDirectionOnMarker(id);
 		car.transform.position = markersPos[id] + car.transform.right * 2.5f;
 	}

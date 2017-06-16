@@ -46,3 +46,6 @@ rl_unity.egg-info/
 
 # Weights files
 *.h5f
+
+# Plots
+rlunity/agents/plots

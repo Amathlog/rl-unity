@@ -47,7 +47,7 @@ public class Socket {
     }
 
     private int sd;
-    private int ad = 3;
+    private int ad = 4; // Actions : Steering, Accl, Reset, LevelNumber
 
     private bool graphicsMode = true;
 

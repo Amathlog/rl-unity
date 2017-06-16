@@ -5,10 +5,13 @@ import subprocess
 import os
 import gym
 from time import sleep
+import time
 import json
 import sys
 from gym import spaces
 import logging
+
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger('UnityEnv')
 
@@ -45,8 +48,22 @@ class UnityEnv(gym.Env):
     self.logfile = None
     self.restart = False
     self.configured = False
+    self.current_level = 0
 
-  def conf(self, loglevel='INFO', log_unity=False, logfile=None, w=128, h=128,frame=True,frame_w=128,frame_h=128, *args, **kwargs):
+    # Metrics
+    self.rewards = 0
+    self.distances = []
+    self.distance_driven = 0
+
+    self.final_rewards = []
+    self.mean_distances = []
+    self.final_distance = []
+
+    self.date = time.strftime('%d_%m_%Y_%H_%M_%S')
+    self.testing = False
+
+
+  def conf(self, loglevel='INFO', log_unity=False, logfile=None, w=128, h=128,frame=True,frame_w=128,frame_h=128, current_level=0, *args, **kwargs):
     logger.setLevel(getattr(logging, loglevel.upper()))
     self.log_unity = log_unity
     if logfile:
@@ -59,6 +76,8 @@ class UnityEnv(gym.Env):
     self.frame_w = frame_w
     self.send_frame = frame
     self.configured = True
+    self.current_level = current_level
+
 
   def connect(self):
     self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -98,10 +117,10 @@ class UnityEnv(gym.Env):
       while not self.proc.poll():
         limit = 3
         if memory_usage(self.proc.pid) > limit * 1024 ** 3:
-          logger.warning(f'Memory usage above {limit} gb. Restarting after this episode.')
+          logger.warning('Memory usage above ' + str(limit) + ' gb. Restarting after this episode.')
           self.restart = True
         sleep(5)
-      logger.debug(f'Unity returned with {self.proc.returncode}')
+      logger.debug('Unity returned with ' + str(self.proc.returncode))
 
     # https://docs.unity3d.com/Manual/CommandLineArguments.html
 
@@ -179,6 +198,8 @@ class UnityEnv(gym.Env):
     self.receive()
     self.send(np.zeros(2), reset=False)
 
+    self.reset_metrics()
+
     state, frame = self.receive()
 
     return state, frame
@@ -222,10 +243,37 @@ class UnityEnv(gym.Env):
 
     return state, frame
 
+  def save_metrics(self):
+    if self.testing:
+        self.final_rewards.append(self.rewards)
+        self.final_distance.append(self.distance_driven)
+        self.mean_distances.append(np.mean(self.distances))
+
+        # Plot into file
+        plt.clf()
+        plt.title("Final rewards")
+        plt.plot(self.final_rewards, 'r')
+        plt.savefig("./plots/ddpg_reward_" + self.date + ".png")
+
+        plt.clf()
+        plt.title("Final distance")
+        plt.plot(self.final_distance, 'b')
+        plt.savefig("./plots/ddpg_distances_" + self.date + ".png")
+
+        plt.clf()
+        plt.title("Final rewards")
+        plt.plot(self.mean_distances, 'g')
+        plt.savefig("./plots/ddpg_mean_" + self.date + ".png")
+
+  def reset_metrics(self):
+    self.rewards = 0
+    self.distances = []
+    self.distance_driven = 0
+
   def send(self, action, reset=False):
-    a = np.concatenate((action, [1. if reset else 0.]))
+    a = np.concatenate((action, [1. if reset else 0., self.current_level]))
     a = np.array(a, dtype=np.float32)
-    assert a.shape == (self.ad + 1,)
+    assert a.shape == (self.ad + 2,)
 
     data_out = a.tobytes()
     self.soc.sendall(data_out)
@@ -253,6 +301,9 @@ class UnityEnv(gym.Env):
       pass  # we do that anyway
     else:
       super()._render(mode, close)  # just raise an exception
+
+  def change_level(self, level_number):
+    self.current_level = level_number
 
 
 def get_free_port(host):
