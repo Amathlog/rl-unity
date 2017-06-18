@@ -69,7 +69,7 @@ memory = SequentialMemory(limit=5000, window_length=1)
 random_process = MultipleOUprocesses(ACTION_SIZE, OU_THETA, OU_MU, OU_SIGMA)
 agent = DDPGAgent(nb_actions=ACTION_SIZE, actor=actor, critic=critic, critic_action_input=action_input,
                   memory=memory, nb_steps_warmup_critic=100, nb_steps_warmup_actor=100,
-                   gamma=.99, target_model_update=1e-3, batch_size=32)
+                   gamma=.99, target_model_update=1e-3, batch_size=64)
 agent.compile(Adam(lr=.001, clipnorm=1.), metrics=['mae'])
 
 filepath = "ddpg_weights"
@@ -86,13 +86,11 @@ if(args.test):
     print("Only testing...")
     while(True):
         env.unwrapped.change_level(1)
-        env.unwrapped.testing = True
         agent.test(env, nb_episodes=1, visualize=False)
-        env.unwrapped.save_metrics()
 else:
     while(True):
         print("Start training...")
-        agent.fit(env, 10000)
+        agent.fit(env, 2500, log_interval=500)
         print("End of training, saving weights...")
         agent.save_weights(filepath, overwrite = True)
         print("Weights trained, testing...")

@@ -4,13 +4,17 @@ from rl.agents import DDPGAgent
 from rl.memory import SequentialMemory
 from rl.random import OrnsteinUhlenbeckProcess
 
-from keras.layers import Dense, Activation, Input, Flatten, concatenate
-from keras.models import Model
+from keras.layers import Dense, Activation, Input, Flatten, concatenate, Permute, Conv2D
+from keras.models import Model, Sequential
 from keras.layers.merge import Concatenate
 from keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint
 from OU import MultipleOUprocesses
 from keras import initializers
+from rl.core import Processor
+import keras.backend as K
+from PIL import Image
+import numpy as np
 
 import argparse
 
@@ -18,6 +22,9 @@ parser = argparse.ArgumentParser(description='DDPG training')
 parser.add_argument('--test', action="store_true", default=False, help='Only testing')
 parser.add_argument('--reset', action="store_true", default=False, help='Reset weights')
 args = parser.parse_args()
+
+INPUT_SHAPE = (84,84)
+WINDOW_LENGTH = 3
 
 class UnityProcessor(Processor):
     def process_observation(self, observation):
@@ -52,85 +59,76 @@ OU_THETA = [0.6,1.0]
 OU_MU = [0,0.6]
 OU_SIGMA = [0.1, 0.3]
 
-input_shape = (3,) + 84
+input_shape = (WINDOW_LENGTH,) + INPUT_SHAPE
 critic = Sequential()
 
-convnet = Sequential()
+observation_input = Input(input_shape, name="ObservationInput")
+
 if K.image_dim_ordering() == 'tf':
     # (width, height, channels)
-    convnet.add(Permute((2, 3, 1), input_shape=input_shape))
+    convnet = Permute((2, 3, 1))(observation_input)
 elif K.image_dim_ordering() == 'th':
     # (channels, width, height)
-    convnet.add(Permute((1, 2, 3), input_shape=input_shape))
+    convnet = Permute((1, 2, 3))(observation_input)
 else:
     raise RuntimeError('Unknown image_dim_ordering.')
 
-convnet.add(Conv2D(32, 8, 8, kernel_initializer='he_normal'))
-convnet.add(Activation('relu'))
-convnet.add(Conv2D(32, 4, 4, kernel_initializer='he_normal'))
-convnet.add(Activation('relu'))
-convnet.add(Conv2D(32, 3, 3, kernel_initializer='he_normal'))
-convnet.add(Activation('relu'))
-convnet.add(Flatten())
-convnet.add(Dense(200, kernel_initializer='he_normal'))
-convnet.add(Activation('relu'))
+convnet = Conv2D(32, kernel_size=(8, 8), kernel_initializer='he_normal', strides=(4,4))(convnet)
+convnet = Activation('relu')(convnet)
+convnet = Conv2D(32, kernel_size=(4, 4), kernel_initializer='he_normal', strides=(2,2))(convnet)
+convnet = Activation('relu')(convnet)
+convnet = Flatten()(convnet)
 
 # Including the action now
 action_input = Input(shape=(ACTION_SIZE,), name="ActionInput")
-actions = Sequential()
-actions.add(action_input)
 
-critic.add(Concatenate([convnet, actions]))
-critic.add(Dense(200, kernel_initializer='he_normal'))
-critic.add(Activation('relu'))
-critic.add(Dense(1, kernel_initializer=initializers.random_uniform(minval=-0.0003, maxval=0.0003)))
-critic.add(Activation('linear'))
+critic = concatenate([convnet, action_input])
+
+critic = Dense(200, kernel_initializer='he_normal')(critic)
+critic = Activation('relu')(critic)
+critic = Dense(1)(critic)
+critic = Activation('linear')(critic)
+
+critic = Model(input=[observation_input, action_input], output=critic)
+
 critic.summary()
 
-# Create the input
-action_input = Input(shape=(ACTION_SIZE,), name="ActionInput")
-
 # Actor
-actor = Sequential()
+observation_input1 = Input(input_shape, name="ObservationInput1")
 if K.image_dim_ordering() == 'tf':
     # (width, height, channels)
-    actor.add(Permute((2, 3, 1), input_shape=input_shape))
+    actor = Permute((2, 3, 1))(observation_input1)
 elif K.image_dim_ordering() == 'th':
     # (channels, width, height)
-    actor.add(Permute((1, 2, 3), input_shape=input_shape))
+    actor = Permute((1, 2, 3))(observation_input1)
 else:
     raise RuntimeError('Unknown image_dim_ordering.')
 
-actor.add(Conv2D(32, 8, 8, kernel_initializer='he_normal'))
-actor.add(Activation('relu'))
-actor.add(Conv2D(32, 4, 4, kernel_initializer='he_normal'))
-actor.add(Activation('relu'))
-actor.add(Conv2D(32, 3, 3, kernel_initializer='he_normal'))
-actor.add(Activation('relu'))
-actor.add(Flatten())
-actor.add(Dense(200, kernel_initializer='he_normal'))
-actor.add(Activation('relu'))
-actor.add(Dense(200, kernel_initializer='he_normal'))
-actor.add(Activation('relu'))
+actor = Conv2D(32, kernel_size=(8, 8), kernel_initializer='he_normal', strides=(4,4))(actor)
+actor = Activation('relu')(actor)
+actor = Conv2D(32, kernel_size=(4, 4), kernel_initializer='he_normal', strides=(2,2))(actor)
+actor = Activation('relu')(actor)
+actor = Flatten()(actor)
+actor = Dense(200, kernel_initializer='he_normal')(actor)
+actor = Activation('relu')(actor)
 
-accl = Sequential()
-accl.add(Dense(1, kernel_initializer=initializers.random_uniform(minval=-0.0003, maxval=0.0003)))
-accl.add(Activation('sigmoid'))
-steer = Sequential()
-steer.add(Dense(1, kernel_initializer=initializers.random_uniform(minval=-0.0003, maxval=0.0003)))
-steer.add(Activation('tanh'))
-
-actor.add(Concatenate([steer, accl]))
+accl = Dense(1)(actor)
+accl = Activation('sigmoid')(accl)
+steer = Dense(1)(actor)
+steer = Activation('tanh')(steer)
+actor = concatenate([steer, accl])
+actor = Model(input=observation_input1, output=actor)
 actor.summary()
 
-memory = SequentialMemory(limit=100000, window_length=4)
+memory = SequentialMemory(limit=100000, window_length=WINDOW_LENGTH)
 random_process = MultipleOUprocesses(ACTION_SIZE, OU_THETA, OU_MU, OU_SIGMA)
+processor = UnityProcessor()
 agent = DDPGAgent(nb_actions=ACTION_SIZE, actor=actor, critic=critic, critic_action_input=action_input,
                   memory=memory, nb_steps_warmup_critic=100, nb_steps_warmup_actor=100,
-                   gamma=.99, target_model_update=1e-3, batch_size=16)
+                   gamma=.99, target_model_update=1e-3, batch_size=16, processor=processor)
 agent.compile(Adam(lr=.001, clipnorm=1.), metrics=['mae'])
 
-filepath = "ddpg_weights"
+filepath = "ddpg_pixels_weights"
 actor_file = filepath + "_actor.h5f"
 filepath += ".h5f"
 import os
@@ -140,12 +138,10 @@ if args.reset:
 if os.path.exists(actor_file) and not args.reset:
     agent.load_weights(filepath)
 
-env.reward = env.reward_right_road
-
 if(args.test):
     print("Only testing...")
     while(True):
-        env.change_level(1)
+        env.unwrapped.change_level(1)
         agent.test(env, nb_episodes=1, visualize=False)
 else:
     while(True):
@@ -154,9 +150,12 @@ else:
         print("End of training, saving weights...")
         agent.save_weights(filepath, overwrite = True)
         print("Weights trained, testing...")
-        env.change_level(1)
-        agent.test(env, nb_episodes=2, nb_max_episode_steps=50000, visualize=False)
+        env.unwrapped.change_level(1)
+        env.unwrapped.testing = True
+        agent.test(env, nb_episodes=1, nb_max_episode_steps=50000, visualize=False)
+        env.unwrapped.save_metrics()
         print("Train over...")
-        env.change_level(0)
+        env.unwrapped.change_level(0)
+        env.unwrapped.testing = False
 
 

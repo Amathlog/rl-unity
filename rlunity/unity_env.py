@@ -15,6 +15,11 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger('UnityEnv')
 
+PLOT_FOLDER = "./plots/"
+FINAL_REWARD_FILE = PLOT_FOLDER + "final_rewards.npy"
+MEAN_DISTANCES_FILE = PLOT_FOLDER + "mean_distances.npy"
+FINAL_DISTANCE_FILE = PLOT_FOLDER + "final_distance.npy"
+
 
 class UnityEnv(gym.Env):
   """A base class for environments using Unity3D
@@ -55,12 +60,11 @@ class UnityEnv(gym.Env):
     self.distances = []
     self.distance_driven = 0
 
-    self.final_rewards = []
-    self.mean_distances = []
-    self.final_distance = []
+    self.setup_metrics()
 
     self.date = time.strftime('%d_%m_%Y_%H_%M_%S')
     self.testing = False
+
 
 
   def conf(self, loglevel='INFO', log_unity=False, logfile=None, w=128, h=128,frame=True,frame_w=128,frame_h=128, current_level=0, *args, **kwargs):
@@ -168,7 +172,7 @@ class UnityEnv(gym.Env):
 
       try:
         self.soc.connect((host, port))
-        self.soc.settimeout(20 * 60)  # 20 minutes
+        self.soc.settimeout(10)  # 20 minutes
         self.connected = True
         break
       except ConnectionRefusedError as e:
@@ -200,7 +204,12 @@ class UnityEnv(gym.Env):
 
     self.reset_metrics()
 
-    state, frame = self.receive()
+    state = None
+    while state is None:
+      state, frame = self.receive()
+      if state is None:
+        logger.debug("Timeout in reset, retry sending info.")
+        self.send(np.zeros(2), reset=False)
 
     return state, frame
 
@@ -210,7 +219,14 @@ class UnityEnv(gym.Env):
     # receive data from simulator process
     data_in = b""
     while len(data_in) < buffer_size:
-      chunk = self.soc.recv(min(1024, buffer_size - len(data_in)))
+      # We don't want to have the simulator and the script to be both on receive mode.
+      # Therefore in this case, there is a timeout on the recv function, returning None for both state and frame
+      # It's the step and reset function duty to check if state is None. In this case, they should try to re-send the
+      # previous action
+      try:
+        chunk = self.soc.recv(min(1024, buffer_size - len(data_in)))
+      except socket.timeout:
+        return None, None
       data_in += chunk
 
     # Checking data points are not None, if yes parse them.
@@ -245,25 +261,49 @@ class UnityEnv(gym.Env):
 
   def save_metrics(self):
     if self.testing:
-        self.final_rewards.append(self.rewards)
-        self.final_distance.append(self.distance_driven)
-        self.mean_distances.append(np.mean(self.distances))
+        if not os.path.exists("./plots"):
+            os.mkdir("./plots")
+
+        self.final_rewards[-1].append(self.rewards)
+        self.final_distance[-1].append(self.distance_driven)
+        self.mean_distances[-1].append(np.mean(self.distances))
+
+        self.save_metrics_file()
 
         # Plot into file
         plt.clf()
         plt.title("Final rewards")
-        plt.plot(self.final_rewards, 'r')
-        plt.savefig("./plots/ddpg_reward_" + self.date + ".png")
+        plt.plot(self.final_rewards[-1], 'r')
+        plt.savefig("./plots/reward_" + self.date + ".png")
 
         plt.clf()
         plt.title("Final distance")
-        plt.plot(self.final_distance, 'b')
-        plt.savefig("./plots/ddpg_distances_" + self.date + ".png")
+        plt.plot(self.final_distance[-1], 'b')
+        plt.savefig("./plots/distances_" + self.date + ".png")
 
         plt.clf()
-        plt.title("Final rewards")
-        plt.plot(self.mean_distances, 'g')
-        plt.savefig("./plots/ddpg_mean_" + self.date + ".png")
+        plt.title("Final Mean distance")
+        plt.plot(self.mean_distances[-1], 'g')
+        plt.savefig("./plots/mean_" + self.date + ".png")
+
+  def setup_metrics(self):
+    if os.path.exists(FINAL_REWARD_FILE):
+      self.final_rewards = np.load(FINAL_REWARD_FILE).tolist()
+      self.mean_distances = np.load(MEAN_DISTANCES_FILE).tolist()
+      self.final_distance = np.load(FINAL_DISTANCE_FILE).tolist()
+    else:
+      self.final_rewards = []
+      self.mean_distances = []
+      self.final_distance = []
+
+    self.final_rewards.append([])
+    self.mean_distances.append([])
+    self.final_distance.append([])
+
+  def save_metrics_file(self):
+    np.save(FINAL_REWARD_FILE, np.array(self.final_rewards))
+    np.save(MEAN_DISTANCES_FILE, np.array(self.mean_distances))
+    np.save(FINAL_DISTANCE_FILE, np.array(self.final_distance))
 
   def reset_metrics(self):
     self.rewards = 0

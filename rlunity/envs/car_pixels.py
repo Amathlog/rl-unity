@@ -21,6 +21,8 @@ class UnityCarPixels(UnityEnv):
     self.observation_space = spaces.Box(0.0, 1.0, shape=[84, 84, 3])
     self.reward_range = (-.1, .1)
     self.r = 0
+    self.last_position = None
+    self.driven_distance = 0
 
   def process_raw_state(self, raw_state):
     # logger.debug("Distance = " + str(raw_state[0]) + " ; Speed Projected road = " + str(raw_state[1:4]))
@@ -45,6 +47,14 @@ class UnityCarPixels(UnityEnv):
     speed_x, speed_y, speed_z = raw_state[1:4]
     next_angle = raw_state[17]
 
+    position = raw_state[4:7]
+
+    if self.last_position is None:
+      self.last_position = position
+
+    self.driven_distance = np.linalg.norm(self.last_position - position)
+    self.last_position = position
+
     #logger.debug("Angle :" + str(angle))
 
     self.v[self.t] = raw_state[1]
@@ -57,7 +67,7 @@ class UnityCarPixels(UnityEnv):
     self.t = 0
     state, frame = super()._reset()
     state = self.process_raw_state(state)
-    return self.proc_frame(frame)
+    return frame
 
   def proc_frame(self, frame):
     if np.shape(frame) != (84, 84, 3):
@@ -71,7 +81,11 @@ class UnityCarPixels(UnityEnv):
     action = np.clip(action, -1, 1)
     self.send(action)
     state, frame = self.receive()
-    logger.debug(str(frame.shape))
+
+    # If state is None, there was a timeout, retry...
+    if state is None:
+      logger.debug("Timeout in step, retry sending action.")
+      return self._step(action)
 
     state = self.process_raw_state(state)
 
@@ -95,7 +109,7 @@ class UnityCarPixels(UnityEnv):
     if done:
       reward = -1
     else:
-      reward = np.clip(speed_x*1.3 - abs(speed_y) - abs(distance)*2, -1, 1)
+      reward = np.clip(speed_x - abs(speed_y) - abs(distance)*2, -1, 1)
 
     # logger.debug("State: " + str(state))
     # logger.debug("Reward: " + str(reward))

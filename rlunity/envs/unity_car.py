@@ -91,6 +91,11 @@ class UnityCar(UnityEnv):
     #logger.debug("Action taken=" + str(action))
     self.send(action)
     state, frame = self.receive()
+    # If state is None, there was a timeout, retry...
+    if state is None:
+      logger.debug("Timeout in step, retry sending action.")
+      return self._step(action)
+      
     #logger.debug(str(frame))
 
     state = self.process_raw_state(state)
@@ -129,7 +134,7 @@ class UnityCar(UnityEnv):
     self.t += 1
 
     self.rewards += reward
-    self.distances.append(distance)
+    self.distances.append(abs(distance))
     self.distance_driven += self.driven_distance
 
     return state, reward, done, {}
@@ -138,7 +143,7 @@ class UnityCar(UnityEnv):
     distance = state[0]
     speed_x = state[2]
     speed_y = state[3]
-    return np.clip((speed_x - 0.5)*1.3 - abs(speed_y) - abs(distance)*2, -1, 1)
+    return np.clip(speed_x - abs(speed_y) - abs(distance), -1, 1)
 
   def reward_right_road(self, state):
     distance = state[0]
