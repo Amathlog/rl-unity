@@ -79,6 +79,7 @@ public class Environment : MonoBehaviour {
                 car.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
                 SetCarPosition();
             } else {
+                Debug.Log("Changing level detected... Loading new scene");
                 SceneManager.LoadScene((int)actions[3]);
             }
 		}
