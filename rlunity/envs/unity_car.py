@@ -47,6 +47,7 @@ class UnityCar(UnityEnv):
     next_angle = raw_state[17]
 
     position = raw_state[4:7]
+    self.positions.append([position[0], position[2]])
 
     if self.last_position is None:
       self.last_position = position
@@ -90,11 +91,7 @@ class UnityCar(UnityEnv):
     action = np.clip(action, -1, 1)
     #logger.debug("Action taken=" + str(action))
     self.send(action)
-    state, frame = self.receive()
-    # If state is None, there was a timeout, retry...
-    if state is None:
-      logger.debug("Timeout in step, retry sending action.")
-      return self._step(action)
+    state, frame = self.receive_with_timeout_checker()
       
     #logger.debug(str(frame))
 
@@ -145,11 +142,17 @@ class UnityCar(UnityEnv):
     speed_y = state[3]
     return np.clip(speed_x - abs(speed_y) - abs(distance), -1, 1)
 
+  def reward_center_road_harder(self, state):
+    distance = state[0]
+    speed_x = state[2]
+    speed_y = state[3]
+    return np.clip(speed_x - abs(speed_y) - abs(distance)*5, -1, 1)
+
   def reward_right_road(self, state):
     distance = state[0]
     speed_x = state[2]
     speed_y = state[3]
-    return np.clip((speed_x - 0.4)*1.3 - abs(speed_y) - abs(0.3 - distance)*2, -1, 1)
+    return np.clip(speed_x- abs(speed_y) - abs(0.4 - distance)*2, -1, 1)
 
   def reward_left_road(self, state):
     distance = state[0]

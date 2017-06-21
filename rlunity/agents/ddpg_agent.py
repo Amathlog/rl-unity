@@ -17,12 +17,13 @@ import argparse
 parser = argparse.ArgumentParser(description='DDPG training')
 parser.add_argument('--test', action="store_true", default=False, help='Only testing')
 parser.add_argument('--reset', action="store_true", default=False, help='Reset weights')
+parser.add_argument('--cont', action="store_true", default=False, help='Continue to plot into the same simulation')
 args = parser.parse_args()
 
 
 # Create gym env
 env = gym.make('UnityCar-v0')  # requires import rlunity
-env.unwrapped.conf(loglevel='debug', log_unity=True, w=1024, h=768, frame=False, frame_w=128, frame_h=128)
+env.unwrapped.conf(loglevel='debug', log_unity=True, w=1024, h=768, frame=False, frame_w=128, frame_h=128, cont=args.cont)
 
 # Sizes
 STATE_SIZE = env.observation_space.shape[0]
@@ -70,36 +71,42 @@ random_process = MultipleOUprocesses(ACTION_SIZE, OU_THETA, OU_MU, OU_SIGMA)
 agent = DDPGAgent(nb_actions=ACTION_SIZE, actor=actor, critic=critic, critic_action_input=action_input,
                   memory=memory, nb_steps_warmup_critic=100, nb_steps_warmup_actor=100,
                    gamma=.99, target_model_update=1e-3, batch_size=64)
-agent.compile(Adam(lr=.001, clipnorm=1.), metrics=['mae'])
+agent.compile(Adam(lr=.001, clipnorm=1., decay=1e-08), metrics=['mae'])
 
-filepath = "ddpg_weights"
-actor_file = filepath + "_actor.h5f"
+fileToLoad = "ddpg_weights_simpleReward"
+filepath = "ddpg_weights_hardReward"
+actor_file = fileToLoad + "_actor.h5f"
 filepath += ".h5f"
+fileToLoad += ".h5f"
 import os
 if args.reset:
     agent.save_weights(filepath, overwrite = True)
 
 if os.path.exists(actor_file) and not args.reset:
-    agent.load_weights(filepath)
+    agent.load_weights(fileToLoad)
+
+#env.unwrapped.reward = env.unwrapped.reward_right_road
+env.unwrapped.reward = env.unwrapped.reward_center_road_harder
 
 if(args.test):
     print("Only testing...")
     while(True):
-        env.unwrapped.change_level(1)
+        env.unwrapped.change_level(0)
         agent.test(env, nb_episodes=1, visualize=False)
 else:
     while(True):
+        env.unwrapped.change_level(1)
         print("Start training...")
         agent.fit(env, 2500, log_interval=500)
         print("End of training, saving weights...")
         agent.save_weights(filepath, overwrite = True)
         print("Weights trained, testing...")
-        env.unwrapped.change_level(1)
+        env.unwrapped.change_level(0)
         env.unwrapped.testing = True
         agent.test(env, nb_episodes=1, nb_max_episode_steps=50000, visualize=False)
         env.unwrapped.save_metrics()
         print("Train over...")
-        env.unwrapped.change_level(0)
+        env.unwrapped.change_level(1)
         env.unwrapped.testing = False
 
 

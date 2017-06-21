@@ -48,6 +48,7 @@ class UnityCarPixels(UnityEnv):
     next_angle = raw_state[17]
 
     position = raw_state[4:7]
+    self.positions.append([position[0], position[2]])
 
     if self.last_position is None:
       self.last_position = position
@@ -65,6 +66,7 @@ class UnityCarPixels(UnityEnv):
   def _reset(self):
     self.v = np.zeros(self.t_max)
     self.t = 0
+    self.last_position = None
     state, frame = super()._reset()
     state = self.process_raw_state(state)
     return frame
@@ -80,12 +82,7 @@ class UnityCarPixels(UnityEnv):
   def _step(self, action):
     action = np.clip(action, -1, 1)
     self.send(action)
-    state, frame = self.receive()
-
-    # If state is None, there was a timeout, retry...
-    if state is None:
-      logger.debug("Timeout in step, retry sending action.")
-      return self._step(action)
+    state, frame = self.receive_with_timeout_checker()
 
     state = self.process_raw_state(state)
 
@@ -109,7 +106,7 @@ class UnityCarPixels(UnityEnv):
     if done:
       reward = -1
     else:
-      reward = np.clip(speed_x - abs(speed_y) - abs(distance)*2, -1, 1)
+      reward = np.clip(speed_x - abs(speed_y) - abs(distance)*3, -1, 1)
 
     # logger.debug("State: " + str(state))
     # logger.debug("Reward: " + str(reward))
@@ -119,6 +116,10 @@ class UnityCarPixels(UnityEnv):
     done = done or self.t+1 >= self.t_max
 
     self.t += 1
+
+    self.rewards += reward
+    self.distances.append(abs(distance))
+    self.distance_driven += self.driven_distance
 
     return frame, reward, done, {'distance_from_road': distance, 'speed': speed_x, 'average_speed': av_speed, 'unwrapped_reward': reward}
 

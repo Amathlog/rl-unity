@@ -54,7 +54,7 @@ env.unwrapped.conf(loglevel='debug', log_unity=True, w=1024, h=768, frame=True, 
 STATE_SIZE = env.observation_space.shape[0]
 ACTION_SIZE = 2
 HIDDEN_SIZE_1 = 200
-HIDDEN_SIZE_2 = 100
+HIDDEN_SIZE_2 = 200
 OU_THETA = [0.6,1.0]
 OU_MU = [0,0.6]
 OU_SIGMA = [0.1, 0.3]
@@ -91,25 +91,20 @@ critic = Activation('linear')(critic)
 
 critic = Model(input=[observation_input, action_input], output=critic)
 
-critic.summary()
+#critic.summary()
 
-# Actor
-observation_input1 = Input(input_shape, name="ObservationInput1")
-if K.image_dim_ordering() == 'tf':
-    # (width, height, channels)
-    actor = Permute((2, 3, 1))(observation_input1)
-elif K.image_dim_ordering() == 'th':
-    # (channels, width, height)
-    actor = Permute((1, 2, 3))(observation_input1)
-else:
-    raise RuntimeError('Unknown image_dim_ordering.')
+# # Actor
+# observation_input1 = Input(input_shape, name="ObservationInput1")
+# if K.image_dim_ordering() == 'tf':
+#     # (width, height, channels)
+#     actor = Permute((2, 3, 1))(observation_input1)
+# elif K.image_dim_ordering() == 'th':
+#     # (channels, width, height)
+#     actor = Permute((1, 2, 3))(observation_input1)
+# else:
+#     raise RuntimeError('Unknown image_dim_ordering.')
 
-actor = Conv2D(32, kernel_size=(8, 8), kernel_initializer='he_normal', strides=(4,4))(actor)
-actor = Activation('relu')(actor)
-actor = Conv2D(32, kernel_size=(4, 4), kernel_initializer='he_normal', strides=(2,2))(actor)
-actor = Activation('relu')(actor)
-actor = Flatten()(actor)
-actor = Dense(200, kernel_initializer='he_normal')(actor)
+actor = Dense(200, kernel_initializer='he_normal')(convnet)
 actor = Activation('relu')(actor)
 
 accl = Dense(1)(actor)
@@ -117,8 +112,8 @@ accl = Activation('sigmoid')(accl)
 steer = Dense(1)(actor)
 steer = Activation('tanh')(steer)
 actor = concatenate([steer, accl])
-actor = Model(input=observation_input1, output=actor)
-actor.summary()
+actor = Model(input=observation_input, output=actor)
+#actor.summary()
 
 memory = SequentialMemory(limit=100000, window_length=WINDOW_LENGTH)
 random_process = MultipleOUprocesses(ACTION_SIZE, OU_THETA, OU_MU, OU_SIGMA)
@@ -146,13 +141,13 @@ if(args.test):
 else:
     while(True):
         print("Start training...")
-        agent.fit(env, 10000)
+        agent.fit(env, 2500, log_interval=500)
         print("End of training, saving weights...")
         agent.save_weights(filepath, overwrite = True)
         print("Weights trained, testing...")
         env.unwrapped.change_level(1)
         env.unwrapped.testing = True
-        agent.test(env, nb_episodes=1, nb_max_episode_steps=50000, visualize=False)
+        agent.test(env, nb_episodes=1, nb_max_episode_steps=10000, visualize=False)
         env.unwrapped.save_metrics()
         print("Train over...")
         env.unwrapped.change_level(0)

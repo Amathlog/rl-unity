@@ -19,6 +19,7 @@ PLOT_FOLDER = "./plots/"
 FINAL_REWARD_FILE = PLOT_FOLDER + "final_rewards.npy"
 MEAN_DISTANCES_FILE = PLOT_FOLDER + "mean_distances.npy"
 FINAL_DISTANCE_FILE = PLOT_FOLDER + "final_distance.npy"
+POSITIONS_FILE = PLOT_FOLDER + "positions.npy"
 
 
 class UnityEnv(gym.Env):
@@ -59,15 +60,14 @@ class UnityEnv(gym.Env):
     self.rewards = 0
     self.distances = []
     self.distance_driven = 0
-
-    self.setup_metrics()
+    self.positions = []
 
     self.date = time.strftime('%d_%m_%Y_%H_%M_%S')
     self.testing = False
 
 
 
-  def conf(self, loglevel='INFO', log_unity=False, logfile=None, w=128, h=128,frame=True,frame_w=128,frame_h=128, current_level=0, *args, **kwargs):
+  def conf(self, loglevel='INFO', log_unity=False, logfile=None, w=128, h=128,frame=True,frame_w=128,frame_h=128, current_level=0, cont=False, *args, **kwargs):
     logger.setLevel(getattr(logging, loglevel.upper()))
     self.log_unity = log_unity
     if logfile:
@@ -81,6 +81,8 @@ class UnityEnv(gym.Env):
     self.send_frame = frame
     self.configured = True
     self.current_level = current_level
+
+    self.setup_metrics(cont)
 
 
   def connect(self):
@@ -172,7 +174,7 @@ class UnityEnv(gym.Env):
 
       try:
         self.soc.connect((host, port))
-        self.soc.settimeout(10)  # 20 minutes
+        self.soc.settimeout(2)  # 20 minutes
         self.connected = True
         break
       except ConnectionRefusedError as e:
@@ -199,19 +201,33 @@ class UnityEnv(gym.Env):
 
     # skip first observation from simulator because it's faulty
     # TODO: fix first observation in simulator
-    self.receive()
+    state, frame = self.receive()
+
     self.send(np.zeros(2), reset=False)
 
     self.reset_metrics()
 
+    return self.receive_with_timeout_checker()
+
+  def receive_with_timeout_checker(self):
     state = None
+    frame = None
+    nb_timeout = 0
+
     while state is None:
       state, frame = self.receive()
       if state is None:
-        logger.debug("Timeout in reset, retry sending info.")
-        self.send(np.zeros(2), reset=False)
-
+        logger.debug("TIMEOUT n°" + str(nb_timeout+1))
+        if nb_timeout >= 3:
+          logger.debug("Can't reach the simulator, restarting...")
+          self.restart = True
+          return UnityEnv._reset(self)
+        else:
+          logger.debug("Retrying....")
+          nb_timeout += 1
+          self.send(np.zeros(2), reset=False)
     return state, frame
+
 
   def receive(self):
     pixel_buffer_size = 0 if self.batchmode or not self.send_frame else self.frame_w * self.frame_h * 4
@@ -231,13 +247,20 @@ class UnityEnv(gym.Env):
 
     # Checking data points are not None, if yes parse them.
     if self.wp is None:
-      with open(os.path.join(self.sim_path, 'sim_Data', 'waypoints_SimpleTerrain.txt')) as f:
+      with open(os.path.join(self.sim_path, 'sim_Data', 'waypoints_SimpleTerrainTest.txt')) as f:
         try:
           wp = json.load(f)
-          self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
+          #self.wp = np.array([[e['x'], e['y'], e['z']] for e in wp])
+          self.wp = np.array([[e['x'], e['z']] for e in wp])
           logger.debug(str(self.wp))
         except json.JSONDecodeError:
           self.wp = None
+
+      from rlunity.utils.catmullrom import sampleRoad
+      road = sampleRoad(self.wp)
+      self.road_x = [p[0] for p in road]
+      self.road_y = [p[1] for p in road]
+      
 
     # Read the number of float sent by the C# side. It's the first number
     # sd = int(np.frombuffer(data_in, np.float32, 1, 0))
@@ -267,48 +290,66 @@ class UnityEnv(gym.Env):
         self.final_rewards[-1].append(self.rewards)
         self.final_distance[-1].append(self.distance_driven)
         self.mean_distances[-1].append(np.mean(self.distances))
+        self.all_positions[-1].append(self.positions)
+
+        final_rewards = np.array(self.final_rewards[-1]) / 10000.0
+        final_distance = np.array(self.final_distance[-1]) / 5625.0
+        mean_distances = np.array(self.mean_distances[-1])
 
         self.save_metrics_file()
 
-        # Plot into file
-        plt.clf()
-        plt.title("Final rewards")
-        plt.plot(self.final_rewards[-1], 'r')
-        plt.savefig("./plots/reward_" + self.date + ".png")
+        fig = plt.figure(1)
+        fig.clf()
+        plt.title("Metrics normalized")
+        ax = fig.add_subplot(111)
+        ax.plot(final_rewards, label='Final Reward')
+        ax.plot(final_distance, label='Final distance')
+        ax.plot(mean_distances, label='Mean distances')
+        handles, labels = ax.get_legend_handles_labels()
+        lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5,-0.1))
+        fig.savefig("./plots/metrics_" + self.date + ".png", bbox_extra_artists=(lgd,), bbox_inches='tight')
 
-        plt.clf()
-        plt.title("Final distance")
-        plt.plot(self.final_distance[-1], 'b')
-        plt.savefig("./plots/distances_" + self.date + ".png")
+        # plt.clf()
+        # plt.title("Tracks (road in blue)")
+        # plt.plot(self.road_x, self.road_y)
+        # nb_tracks = len(self.all_positions)
+        # for i in range(nb_tracks):
+        #   r_color = 1
+        #   road_x = [p[0] for p in self.all_positions[i]]
+        #   road_y = [p[1] for p in self.all_positions[i]]
+        #   plt.plot(road_x, road_y, color=(r_color,0,0))
+        # plt.savefig("./plots/positions_" + self.date + ".png")
 
-        plt.clf()
-        plt.title("Final Mean distance")
-        plt.plot(self.mean_distances[-1], 'g')
-        plt.savefig("./plots/mean_" + self.date + ".png")
 
-  def setup_metrics(self):
+  def setup_metrics(self, cont = False):
     if os.path.exists(FINAL_REWARD_FILE):
       self.final_rewards = np.load(FINAL_REWARD_FILE).tolist()
       self.mean_distances = np.load(MEAN_DISTANCES_FILE).tolist()
       self.final_distance = np.load(FINAL_DISTANCE_FILE).tolist()
+      self.all_positions = np.load(POSITIONS_FILE).tolist()
     else:
       self.final_rewards = []
       self.mean_distances = []
       self.final_distance = []
+      self.all_positions = []
 
-    self.final_rewards.append([])
-    self.mean_distances.append([])
-    self.final_distance.append([])
+    if not cont or not os.path.exists(FINAL_REWARD_FILE):
+      self.final_rewards.append([])
+      self.mean_distances.append([])
+      self.final_distance.append([])
+      self.all_positions.append([])
 
   def save_metrics_file(self):
     np.save(FINAL_REWARD_FILE, np.array(self.final_rewards))
     np.save(MEAN_DISTANCES_FILE, np.array(self.mean_distances))
     np.save(FINAL_DISTANCE_FILE, np.array(self.final_distance))
+    np.save(POSITIONS_FILE, np.array(self.all_positions))
 
   def reset_metrics(self):
     self.rewards = 0
     self.distances = []
     self.distance_driven = 0
+    self.positions = []
 
   def send(self, action, reset=False):
     a = np.concatenate((action, [1. if reset else 0., self.current_level]))
