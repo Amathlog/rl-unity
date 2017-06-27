@@ -18,7 +18,7 @@ class UnityCarPixels(UnityEnv):
     self.t0 = 20 * 7
 
     sbm = self.sbm
-    self.observation_space = spaces.Box(0.0, 1.0, shape=[84, 84, 3])
+    self.observation_space = spaces.Box(0.0, 1.0, shape=[64, 64, 3])
     self.reward_range = (-.1, .1)
     self.r = 0
     self.last_position = None
@@ -48,7 +48,6 @@ class UnityCarPixels(UnityEnv):
     next_angle = raw_state[17]
 
     position = raw_state[4:7]
-    self.positions.append([position[0], position[2]])
 
     if self.last_position is None:
       self.last_position = position

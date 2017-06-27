@@ -19,9 +19,18 @@ class UnityCar(UnityEnv):
     self.sbm = 7
     sbm = 7
     self.observation_space = spaces.Box(-np.ones([sbm]), np.ones([sbm]))
+    self.alpha = 1
+    self.beta = 1
+    self.gamma = 1
     self.reward = self.reward_center_road
     self.last_position = None
     self.driven_distance = 0
+
+
+  def setup_reward(self, alpha, beta, gamma):
+    self.alpha = alpha
+    self.beta = beta
+    self.gamma = gamma
 
   def process_raw_state(self, raw_state):
     # logger.debug("Distance = " + str(raw_state[0]) + " ; Speed Projected road = " + str(raw_state[1:4]))
@@ -47,7 +56,6 @@ class UnityCar(UnityEnv):
     next_angle = raw_state[17]
 
     position = raw_state[4:7]
-    self.positions.append([position[0], position[2]])
 
     if self.last_position is None:
       self.last_position = position
@@ -140,25 +148,19 @@ class UnityCar(UnityEnv):
     distance = state[0]
     speed_x = state[2]
     speed_y = state[3]
-    return np.clip(speed_x - abs(speed_y) - abs(distance), -1, 1)
-
-  def reward_center_road_harder(self, state):
-    distance = state[0]
-    speed_x = state[2]
-    speed_y = state[3]
-    return np.clip(speed_x - abs(speed_y) - abs(distance)*5, -1, 1)
+    return np.clip(self.alpha * speed_x - self.beta * abs(speed_y) - self.gamma * abs(distance), -1, 1)
 
   def reward_right_road(self, state):
     distance = state[0]
     speed_x = state[2]
     speed_y = state[3]
-    return np.clip(speed_x- abs(speed_y) - abs(0.4 - distance)*2, -1, 1)
+    return np.clip(speed_x- abs(speed_y) - abs(0.3 - distance)*1, -1, 1)
 
   def reward_left_road(self, state):
     distance = state[0]
     speed_x = state[2]
     speed_y = state[3]
-    return np.clip(speed_x - abs(speed_y) - abs(distance + 0.3)*2, -1, 1)
+    return np.clip(speed_x - abs(speed_y) - abs(distance + 0.4)*2, -1, 1)
 
   def report(self):
     logger.info('Distance driven: ' + str(self.v.sum()))

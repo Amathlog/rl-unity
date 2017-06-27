@@ -23,7 +23,7 @@ parser.add_argument('--test', action="store_true", default=False, help='Only tes
 parser.add_argument('--reset', action="store_true", default=False, help='Reset weights')
 args = parser.parse_args()
 
-INPUT_SHAPE = (84,84)
+INPUT_SHAPE = (64,64)
 WINDOW_LENGTH = 3
 
 class UnityProcessor(Processor):
@@ -48,7 +48,7 @@ class UnityProcessor(Processor):
 
 # Create gym env
 env = gym.make('UnityCarPixels-v0')  # requires import rlunity
-env.unwrapped.conf(loglevel='debug', log_unity=True, w=1024, h=768, frame=True, frame_w=84, frame_h=84)
+env.unwrapped.conf(loglevel='debug', log_unity=True, w=1024, h=768, frame=True, frame_w=64, frame_h=64)
 
 # Sizes
 STATE_SIZE = env.observation_space.shape[0]
@@ -66,10 +66,10 @@ observation_input = Input(input_shape, name="ObservationInput")
 
 if K.image_dim_ordering() == 'tf':
     # (width, height, channels)
-    convnet = Permute((2, 3, 1))(observation_input)
+    convnet = Permute((2,3,1))(observation_input)
 elif K.image_dim_ordering() == 'th':
     # (channels, width, height)
-    convnet = Permute((1, 2, 3))(observation_input)
+    convnet = Permute((1,2,3))(observation_input)
 else:
     raise RuntimeError('Unknown image_dim_ordering.')
 
@@ -78,6 +78,23 @@ convnet = Activation('relu')(convnet)
 convnet = Conv2D(32, kernel_size=(4, 4), kernel_initializer='he_normal', strides=(2,2))(convnet)
 convnet = Activation('relu')(convnet)
 convnet = Flatten()(convnet)
+
+observation_input1 = Input(input_shape, name="ObservationInput1")
+
+if K.image_dim_ordering() == 'tf':
+    # (width, height, channels)
+    convnet1 = Permute((2,3,1))(observation_input1)
+elif K.image_dim_ordering() == 'th':
+    # (channels, width, height)
+    convnet1 = Permute((1,2,3))(observation_input1)
+else:
+    raise RuntimeError('Unknown image_dim_ordering.')
+
+convnet1 = Conv2D(32, kernel_size=(8, 8), kernel_initializer='he_normal', strides=(4,4))(convnet1)
+convnet1 = Activation('relu')(convnet1)
+convnet1 = Conv2D(32, kernel_size=(4, 4), kernel_initializer='he_normal', strides=(2,2))(convnet1)
+convnet1 = Activation('relu')(convnet1)
+convnet1 = Flatten()(convnet1)
 
 # Including the action now
 action_input = Input(shape=(ACTION_SIZE,), name="ActionInput")
@@ -91,7 +108,7 @@ critic = Activation('linear')(critic)
 
 critic = Model(input=[observation_input, action_input], output=critic)
 
-#critic.summary()
+critic.summary()
 
 # # Actor
 # observation_input1 = Input(input_shape, name="ObservationInput1")
@@ -104,7 +121,7 @@ critic = Model(input=[observation_input, action_input], output=critic)
 # else:
 #     raise RuntimeError('Unknown image_dim_ordering.')
 
-actor = Dense(200, kernel_initializer='he_normal')(convnet)
+actor = Dense(200, kernel_initializer='he_normal')(convnet1)
 actor = Activation('relu')(actor)
 
 accl = Dense(1)(actor)
@@ -112,8 +129,8 @@ accl = Activation('sigmoid')(accl)
 steer = Dense(1)(actor)
 steer = Activation('tanh')(steer)
 actor = concatenate([steer, accl])
-actor = Model(input=observation_input, output=actor)
-#actor.summary()
+actor = Model(input=observation_input1, output=actor)
+actor.summary()
 
 memory = SequentialMemory(limit=100000, window_length=WINDOW_LENGTH)
 random_process = MultipleOUprocesses(ACTION_SIZE, OU_THETA, OU_MU, OU_SIGMA)

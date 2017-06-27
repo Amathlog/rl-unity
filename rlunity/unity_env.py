@@ -290,7 +290,6 @@ class UnityEnv(gym.Env):
         self.final_rewards[-1].append(self.rewards)
         self.final_distance[-1].append(self.distance_driven)
         self.mean_distances[-1].append(np.mean(self.distances))
-        self.all_positions[-1].append(self.positions)
 
         final_rewards = np.array(self.final_rewards[-1]) / 10000.0
         final_distance = np.array(self.final_distance[-1]) / 5625.0
@@ -309,6 +308,8 @@ class UnityEnv(gym.Env):
         lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5,-0.1))
         fig.savefig("./plots/metrics_" + self.date + ".png", bbox_extra_artists=(lgd,), bbox_inches='tight')
 
+        return self.rewards, self.distance_driven, np.mean(self.distances)
+
         # plt.clf()
         # plt.title("Tracks (road in blue)")
         # plt.plot(self.road_x, self.road_y)
@@ -326,30 +327,25 @@ class UnityEnv(gym.Env):
       self.final_rewards = np.load(FINAL_REWARD_FILE).tolist()
       self.mean_distances = np.load(MEAN_DISTANCES_FILE).tolist()
       self.final_distance = np.load(FINAL_DISTANCE_FILE).tolist()
-      self.all_positions = np.load(POSITIONS_FILE).tolist()
     else:
       self.final_rewards = []
       self.mean_distances = []
       self.final_distance = []
-      self.all_positions = []
 
     if not cont or not os.path.exists(FINAL_REWARD_FILE):
       self.final_rewards.append([])
       self.mean_distances.append([])
       self.final_distance.append([])
-      self.all_positions.append([])
 
   def save_metrics_file(self):
     np.save(FINAL_REWARD_FILE, np.array(self.final_rewards))
     np.save(MEAN_DISTANCES_FILE, np.array(self.mean_distances))
     np.save(FINAL_DISTANCE_FILE, np.array(self.final_distance))
-    np.save(POSITIONS_FILE, np.array(self.all_positions))
 
   def reset_metrics(self):
     self.rewards = 0
     self.distances = []
     self.distance_driven = 0
-    self.positions = []
 
   def send(self, action, reset=False):
     a = np.concatenate((action, [1. if reset else 0., self.current_level]))
